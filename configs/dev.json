@@ -1,0 +1,37 @@
+{
+  "uid": 1000,
+  "gid": 1000,
+  "rlimits": [
+    { "resource": "RLIMIT_CORE", "soft": 1, "hard": 1 },
+    { "resource": "RLIMIT_CPU", "soft": 1, "hard": 2 },
+  ],
+  "seccomp": {
+    "default_action": "allow",
+    "syscalls": [
+      {
+        "action": "errno",
+        "names": [
+          "connect",
+          "accept",
+          "sendto",
+          "recvfrom",
+          "sendmsg",
+          "recvmsg",
+          "bind",
+          "listen",
+          "setrlimit",
+          "chown",
+          "chmod",
+          "chroot",
+          "ptrace",
+          "setresuid",
+          "setresgid",
+          "setreuid",
+          "setregid",
+          "setuid",
+          "setgid"
+        ]
+      }
+    ]
+  }
+}
