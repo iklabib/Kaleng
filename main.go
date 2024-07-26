@@ -17,7 +17,7 @@ import (
 
 // TODO: memory limit
 // TODO: cgroup
-// TODO: landlock
+// TODO: namespaces
 
 func main() {
 	var cli CLI
@@ -25,11 +25,20 @@ func main() {
 
 	switch ctx.Command() {
 	case "run <args>":
+		if cli.Run.Config == "" {
+			helpUsage()
+		}
+
 		run(cli)
 	case "exec <args>":
+		if cli.Exec.Config == "" {
+			helpUsage()
+		}
+
 		config, err := util.LoadConfig(cli.Exec.Config)
 		util.Bail(err)
 
+		restrict.EnforceLandlock(config.Landlock)
 		restrict.SetRlimits(config.Rlimits)
 		restrict.PrivelegeDrop(config.Uid, config.Gid)
 		restrict.EnforceSeccomp(config.Seccomp)
@@ -45,11 +54,40 @@ func run(cli CLI) {
 	arguments := []string{"exec", "--config", cli.Run.Config}
 	arguments = append(arguments, cli.Run.Args...)
 	cmd := exec.Command("/proc/self/exe", arguments...)
-
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+
+	/*
+				config, err := util.LoadConfig(cli.Run.Config)
+				util.Bail(err)
+
+		    cmd.SysProcAttr = &syscall.SysProcAttr{
+		      GidMappings: []syscall.SysProcIDMap{
+		        {
+		          ContainerID: config.Gid,
+		          HostID:      config.Gid,
+		          Size:        1,
+		        },
+		      },
+		      UidMappings: []syscall.SysProcIDMap{
+		        {
+		          ContainerID: config.Uid,
+		          HostID:      config.Uid,
+		          Size:        1,
+		        },
+		      },
+		    }
+	*/
 
 	cmd.Run()
+
+	if !cmd.ProcessState.Exited() {
+		wt := cmd.ProcessState.Sys().(syscall.WaitStatus)
+		if wt.Signaled() {
+			fmt.Println(wt.Signal())
+		}
+	}
 }
 
 func child(executable string, args []string) {

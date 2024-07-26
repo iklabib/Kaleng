@@ -3,9 +3,11 @@ package restrict
 import (
 	"syscall"
 
+	"codeberg.org/iklabib/kaleng/model"
 	"codeberg.org/iklabib/kaleng/rlimit"
 	"codeberg.org/iklabib/kaleng/util"
 	"github.com/elastic/go-seccomp-bpf"
+	"github.com/shoenig/go-landlock"
 )
 
 func EnforceSeccomp(policy seccomp.Policy) {
@@ -46,5 +48,39 @@ func SetRlimits(rlimits []rlimit.Rlimit) {
 	}
 }
 
-func SetNamespaces(namespaces []string) {
+func EnforceLandlock(config model.Landlock) {
+	var paths []*landlock.Path
+
+	if config.Tty {
+		paths = append(paths, landlock.TTY())
+	}
+
+	if config.Shared {
+		paths = append(paths, landlock.Shared())
+	}
+
+	if config.Tmp {
+		paths = append(paths, landlock.Tmp())
+	}
+
+	if config.Dns {
+		paths = append(paths, landlock.DNS())
+	}
+
+	if config.VMInfo {
+		paths = append(paths, landlock.VMInfo())
+	}
+
+	for _, v := range config.Files {
+		lp, err := landlock.ParsePath(v)
+		if err != nil {
+			util.Bail(err)
+		}
+		paths = append(paths, lp)
+	}
+
+	ll := landlock.New(paths...)
+	if err := ll.Lock(landlock.Mandatory); err != nil {
+		util.MessageBail("failed to enforce landlock")
+	}
 }
