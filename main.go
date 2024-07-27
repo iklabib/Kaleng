@@ -58,36 +58,7 @@ func run(cli CLI) {
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 
-	/*
-				config, err := util.LoadConfig(cli.Run.Config)
-				util.Bail(err)
-
-		    cmd.SysProcAttr = &syscall.SysProcAttr{
-		      GidMappings: []syscall.SysProcIDMap{
-		        {
-		          ContainerID: config.Gid,
-		          HostID:      config.Gid,
-		          Size:        1,
-		        },
-		      },
-		      UidMappings: []syscall.SysProcIDMap{
-		        {
-		          ContainerID: config.Uid,
-		          HostID:      config.Uid,
-		          Size:        1,
-		        },
-		      },
-		    }
-	*/
-
 	cmd.Run()
-
-	if !cmd.ProcessState.Exited() {
-		wt := cmd.ProcessState.Sys().(syscall.WaitStatus)
-		if wt.Signaled() {
-			fmt.Println(wt.Signal())
-		}
-	}
 }
 
 func child(executable string, args []string) {
@@ -98,10 +69,11 @@ func child(executable string, args []string) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	// FIXME: why mapping using SysProcAttr did not work?
-	// uid 0 (host) -> 1000 (container)
-	// gid 0 (host) -> 1000 (container)
-	cmd.Run()
+	if err := cmd.Start(); err != nil {
+		util.Bail(err)
+	}
+
+	cmd.Wait()
 
 	procState := cmd.ProcessState
 	usage, ok := procState.SysUsage().(*syscall.Rusage)
@@ -124,10 +96,9 @@ func child(executable string, args []string) {
 	}
 
 	result := model.Result{
-		Success: true,
-		Metric:  metrics,
-		Stdout:  stdout.String(),
-		Stderr:  stderr.String(),
+		Metric: metrics,
+		Stdout: stdout.String(),
+		Stderr: stderr.String(),
 	}
 
 	marshaled, err := json.Marshal(result)

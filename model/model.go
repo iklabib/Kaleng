@@ -8,12 +8,23 @@ import (
 	"github.com/elastic/go-seccomp-bpf"
 )
 
+type Landlock struct {
+	Files  []string `json:"files"` // fd:rwxc:/path
+	Tty    bool     `json:"tty"`
+	Shared bool     `json:"shared"`
+	Tmp    bool     `json:"tmp"`
+	VMInfo bool     `json:"vm_info"`
+	Dns    bool     `json:"dns"`
+	Certs  bool     `json:"certs"`
+}
+
 type KalengConfig struct {
 	Seccomp    seccomp.Policy  `json:"seccomp"`
 	Namespaces []string        `json:"namespaces"`
 	Rlimits    []rlimit.Rlimit `json:"rlimits"`
-	Uid        int             `json:"uid"`
-	Gid        int             `json:"gid"`
+	Landlock   `json:"landlock"`
+	Uid        int `json:"uid"`
+	Gid        int `json:"gid"`
 }
 
 type Metrics struct {
@@ -29,5 +40,4 @@ type Result struct {
 	Stderr  string  `json:"stderr"`
 	Message string  `json:"message"`
 	Metric  Metrics `json:"metric"`
-	Success bool    `json:"status"`
 }
