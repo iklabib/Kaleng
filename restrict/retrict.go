@@ -81,6 +81,35 @@ func EnforceLandlock(config model.Landlock) {
 
 	ll := landlock.New(paths...)
 	if err := ll.Lock(landlock.Mandatory); err != nil {
-		util.MessageBail("failed to enforce landlock")
+		util.Bail(err)
 	}
+}
+
+// keep in mind that clone is blocked by docker default seccomp profile
+// unless you have CAP_SYS_ADMIN
+func GetCloneFlags(namespaces []string) int {
+	if len(namespaces) == 0 {
+		util.MessageBail("no namespaces provided")
+	}
+
+	var cloneFlags int
+	for _, ns := range namespaces {
+		switch ns {
+		case "CLONE_NEWCGROUP":
+			cloneFlags |= syscall.CLONE_NEWCGROUP
+		case "CLONE_NEWUTS":
+			cloneFlags |= syscall.CLONE_NEWUTS
+		case "CLONE_NEWIPC":
+			cloneFlags |= syscall.CLONE_NEWIPC
+		case "CLONE_NEWNS":
+			cloneFlags |= syscall.CLONE_NEWNS
+		case "CLONE_NEWUSER":
+			cloneFlags |= syscall.CLONE_NEWUSER
+		case "CLONE_NEWPID":
+			cloneFlags |= syscall.CLONE_NEWPID
+		case "CLONE_NEWNET":
+			cloneFlags |= syscall.CLONE_NEWNET
+		}
+	}
+	return cloneFlags
 }
