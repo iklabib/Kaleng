@@ -115,11 +115,11 @@ func helpUsage() {
 type CLI struct {
 	Run struct {
 		Config string
-		Args   []string `arg:""`
+		Args   []string `arg:"" passthrough:""`
 	} `cmd:""`
 
 	Exec struct {
 		Config string
-		Args   []string `arg:""`
+		Args   []string `arg:"" passthrough:""`
 	} `cmd:""`
 }
