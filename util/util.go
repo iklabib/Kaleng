@@ -37,14 +37,14 @@ var INTERNAL_ERROR = -1
 
 func Bail(err error) {
 	if err != nil {
-		format := "{\"stdout\":\"\",\"stderr\":\"\"\"message\":\"%v\",\"metric\":{\"signal\":0,\"exit_code\":-1,\"sys_time\":0,\"time\":0},\"status\":false}\n"
+		format := "{\"stdout\":\"\",\"stderr\":\"\",\"message\":\"%v\",\"metric\":{\"signal\":null,\"exit_code\":-1,\"sys_time\":0,\"time\":0}\n"
 		fmt.Printf(format, err)
 		os.Exit(INTERNAL_ERROR)
 	}
 }
 
 func MessageBail(msg string) {
-	format := "{\"stdout\":\"\",\"stderr\":\"\"\"message\":\"%s\",\"metric\":{\"signal\":0,\"exit_code\":-1,\"sys_time\":0,\"time\":0},\"status\":false}\n"
+	format := "{\"stdout\":\"\",\"stderr\":\"\",\"message\":\"%s\",\"metric\":{\"signal\":null,\"exit_code\":-1,\"sys_time\":0,\"time\":0}\n"
 	fmt.Printf(format, msg)
 	os.Exit(INTERNAL_ERROR)
 }
