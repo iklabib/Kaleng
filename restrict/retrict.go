@@ -1,6 +1,8 @@
 package restrict
 
 import (
+	"fmt"
+	"os"
 	"syscall"
 
 	"codeberg.org/iklabib/kaleng/model"
@@ -9,6 +11,16 @@ import (
 	"github.com/elastic/go-seccomp-bpf"
 	"github.com/shoenig/go-landlock"
 )
+
+func SetEnvs(envs map[string]string) {
+	os.Clearenv()
+
+	for k, v := range envs {
+		if err := os.Setenv(k, v); err != nil {
+			util.Bail(err)
+		}
+	}
+}
 
 func EnforceSeccomp(policy seccomp.Policy) {
 	if !seccomp.Supported() {
@@ -85,30 +97,27 @@ func EnforceLandlock(config model.Landlock) {
 	}
 }
 
-// keep in mind that clone is blocked by docker default seccomp profile
-// unless you have CAP_SYS_ADMIN
-func GetCloneFlags(namespaces []string) int {
-	if len(namespaces) == 0 {
-		util.MessageBail("no namespaces provided")
-	}
+var namespacesMap map[string]uintptr = map[string]uintptr{
+	"CGROUP": syscall.CLONE_NEWCGROUP,
+	"UTS":    syscall.CLONE_NEWUTS,
+	"IPC":    syscall.CLONE_NEWIPC,
+	"MNT":    syscall.CLONE_NEWNS,
+	"USER":   syscall.CLONE_NEWUSER,
+	"PID":    syscall.CLONE_NEWPID,
+	"NET":    syscall.CLONE_NEWNET,
+	"TIME":   syscall.CLONE_NEWTIME,
+}
 
-	var cloneFlags int
-	for _, ns := range namespaces {
-		switch ns {
-		case "CLONE_NEWCGROUP":
-			cloneFlags |= syscall.CLONE_NEWCGROUP
-		case "CLONE_NEWUTS":
-			cloneFlags |= syscall.CLONE_NEWUTS
-		case "CLONE_NEWIPC":
-			cloneFlags |= syscall.CLONE_NEWIPC
-		case "CLONE_NEWNS":
-			cloneFlags |= syscall.CLONE_NEWNS
-		case "CLONE_NEWUSER":
-			cloneFlags |= syscall.CLONE_NEWUSER
-		case "CLONE_NEWPID":
-			cloneFlags |= syscall.CLONE_NEWPID
-		case "CLONE_NEWNET":
-			cloneFlags |= syscall.CLONE_NEWNET
+// keep in mind that clone is blocked by docker default seccomp profile unless you have CAP_SYS_ADMIN
+// on Debian based system you need to enable kernel.unprivileged_userns_clone
+func GetNamespaceFlag(namespaces []string) uintptr {
+	var cloneFlags uintptr
+	for _, key := range namespaces {
+		if ns, ok := namespacesMap[key]; ok {
+			cloneFlags |= ns
+		} else {
+			err := fmt.Errorf("invalid namespace option '%s'", key)
+			util.Bail(err)
 		}
 	}
 	return cloneFlags

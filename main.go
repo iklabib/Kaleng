@@ -15,9 +15,7 @@ import (
 	"github.com/alecthomas/kong"
 )
 
-// TODO: memory limit
 // TODO: cgroup
-// TODO: namespaces
 
 func main() {
 	var cli CLI
@@ -38,9 +36,9 @@ func main() {
 		config, err := util.LoadConfig(cli.Exec.Config)
 		util.Bail(err)
 
+		restrict.SetEnvs(config.Envs)
 		restrict.EnforceLandlock(config.Landlock)
 		restrict.SetRlimits(config.Rlimits)
-		restrict.PrivelegeDrop(config.Uid, config.Gid)
 		restrict.EnforceSeccomp(config.Seccomp)
 
 		executable := cli.Exec.Args[0]
@@ -51,13 +49,39 @@ func main() {
 }
 
 func run(cli CLI) {
+	config, err := util.LoadConfig(cli.Run.Config)
+	util.Bail(err)
+
+	procAttr := syscall.SysProcAttr{
+		GidMappingsEnableSetgroups: true,
+		UidMappings: []syscall.SysProcIDMap{
+			{
+				HostID:      os.Getuid(),
+				ContainerID: config.Uid,
+				Size:        1,
+			},
+		},
+		GidMappings: []syscall.SysProcIDMap{
+			{
+				HostID:      os.Getgid(),
+				ContainerID: config.Gid,
+				Size:        1,
+			},
+		},
+	}
+
+	// only apply namespaces if flags provided
+	if len(config.Namespaces) > 0 {
+		procAttr.Cloneflags = restrict.GetNamespaceFlag(config.Namespaces)
+	}
+
 	arguments := []string{"exec", "--config", cli.Run.Config}
 	arguments = append(arguments, cli.Run.Args...)
 	cmd := exec.Command("/proc/self/exe", arguments...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
-
+	cmd.SysProcAttr = &procAttr
 	cmd.Run()
 }
 
@@ -68,6 +92,7 @@ func child(executable string, args []string) {
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+	cmd.Stdin = os.Stdin
 
 	if err := cmd.Start(); err != nil {
 		util.Bail(err)

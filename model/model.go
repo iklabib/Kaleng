@@ -19,9 +19,10 @@ type Landlock struct {
 }
 
 type KalengConfig struct {
-	Seccomp    seccomp.Policy  `json:"seccomp"`
-	Namespaces []string        `json:"namespaces"`
-	Rlimits    []rlimit.Rlimit `json:"rlimits"`
+	Seccomp    seccomp.Policy    `json:"seccomp"`
+	Namespaces []string          `json:"namespaces"`
+	Rlimits    []rlimit.Rlimit   `json:"rlimits"`
+	Envs       map[string]string `json:"envs"`
 	Landlock   `json:"landlock"`
 	Uid        int `json:"uid"`
 	Gid        int `json:"gid"`
