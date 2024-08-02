@@ -13,46 +13,30 @@ import (
 	"codeberg.org/iklabib/kaleng/restrict"
 	"codeberg.org/iklabib/kaleng/util"
 	"github.com/alecthomas/kong"
+	"github.com/docker/docker/pkg/reexec"
 )
 
 // TODO: cgroup
+// TODO: better landlock violation report
 
 func main() {
 	var cli CLI
 	ctx := kong.Parse(&cli)
 
-	switch ctx.Command() {
-	case "run <args>":
-		if cli.Run.Config == "" {
-			helpUsage()
-		}
-
-		run(cli)
-	case "exec <args>":
-		if cli.Exec.Config == "" {
-			helpUsage()
-		}
-
-		config, err := util.LoadConfig(cli.Exec.Config)
-		util.Bail(err)
-
-		restrict.SetEnvs(config.Envs)
-		restrict.EnforceLandlock(config.Landlock)
-		restrict.SetRlimits(config.Rlimits)
-		restrict.EnforceSeccomp(config.Seccomp)
-
-		executable := cli.Exec.Args[0]
-		child(executable, cli.Exec.Args[1:])
-	default:
-		helpUsage()
-	}
-}
-
-func run(cli CLI) {
-	config, err := util.LoadConfig(cli.Run.Config)
+	config, err := util.LoadConfig(cli.Execute.Config)
 	util.Bail(err)
 
-	procAttr := syscall.SysProcAttr{
+	if cli.Execute.Config == "" {
+		helpUsage(ctx.Model.Help)
+	}
+
+	args := append([]string{"setup"}, os.Args[1:]...)
+	cmd := reexec.Command(args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+
+	sysProcAttr := &syscall.SysProcAttr{
 		GidMappingsEnableSetgroups: true,
 		UidMappings: []syscall.SysProcIDMap{
 			{
@@ -72,20 +56,46 @@ func run(cli CLI) {
 
 	// only apply namespaces if flags provided
 	if len(config.Namespaces) > 0 {
-		procAttr.Cloneflags = restrict.GetNamespaceFlag(config.Namespaces)
+		sysProcAttr.Cloneflags = restrict.GetNamespaceFlag(config.Namespaces)
 	}
 
-	arguments := []string{"exec", "--config", cli.Run.Config}
-	arguments = append(arguments, cli.Run.Args...)
-	cmd := exec.Command("/proc/self/exe", arguments...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-	cmd.SysProcAttr = &procAttr
-	cmd.Run()
+	cmd.SysProcAttr = sysProcAttr
+
+	err = cmd.Start()
+	util.Bail(err)
+
+	err = cmd.Wait()
+	util.Bail(err)
 }
 
-func child(executable string, args []string) {
+func init() {
+	reexec.Register("setup", setup)
+	if reexec.Init() {
+		os.Exit(0)
+	}
+}
+
+func setup() {
+	var cli CLI
+	kong.Parse(&cli)
+
+	config, err := util.LoadConfig(cli.Execute.Config)
+	util.Bail(err)
+
+	restrict.SetEnvs(config.Envs)
+	restrict.PivotRoot(cli.Execute.Root, cli.Execute.Rootfs)
+
+	// restrict.SetRlimits(config.Rlimits)
+	// restrict.EnforceLandlock(config.Landlock)
+	restrict.EnforceSeccomp(config.Seccomp)
+
+	executable := cli.Execute.Args[0]
+	args := cli.Execute.Args[1:]
+
+	execute(executable, args)
+}
+
+func execute(executable string, args []string) {
 	cmd := exec.Command(executable, args...)
 
 	var stdout bytes.Buffer
@@ -94,9 +104,7 @@ func child(executable string, args []string) {
 	cmd.Stderr = &stderr
 	cmd.Stdin = os.Stdin
 
-	if err := cmd.Start(); err != nil {
-		util.Bail(err)
-	}
+	util.Bail(cmd.Start())
 
 	cmd.Wait()
 
@@ -126,25 +134,28 @@ func child(executable string, args []string) {
 		Stderr: stderr.String(),
 	}
 
+	switch metrics.Signal {
+	// SIGSYS likely caused by seccomp violation
+	case syscall.SIGSYS:
+		result.Message = "restriction violated"
+	}
+
 	marshaled, err := json.Marshal(result)
 	util.Bail(err)
 
 	fmt.Println(string(marshaled))
 }
 
-func helpUsage() {
-	fmt.Fprintln(os.Stderr, "usage:\nkaleng run --config config.json executable arguments")
+func helpUsage(help string) {
+	fmt.Fprintln(os.Stderr, help)
 	os.Exit(0)
 }
 
 type CLI struct {
-	Run struct {
+	Execute struct {
 		Config string
-		Args   []string `arg:"" passthrough:""`
-	} `cmd:""`
-
-	Exec struct {
-		Config string
+		Root   string
+		Rootfs string
 		Args   []string `arg:"" passthrough:""`
 	} `cmd:""`
 }

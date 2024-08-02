@@ -3,6 +3,7 @@ package restrict
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"syscall"
 
 	"codeberg.org/iklabib/kaleng/model"
@@ -121,4 +122,30 @@ func GetNamespaceFlag(namespaces []string) uintptr {
 		}
 	}
 	return cloneFlags
+}
+
+func PivotRoot(newroot, rootfs string) {
+	// new_root and put_old must not be on the same mount as the current root.
+	if err := syscall.Mount("tmpfs", newroot, "tmpfs", 0, "size=64M,mode=755"); err != nil {
+		util.Bail(fmt.Errorf("failed to create tmpfs: %s", err.Error()))
+	}
+
+	// put_old must be at or underneath new_root
+	putold := filepath.Join(newroot, ".pivot")
+	util.Bail(os.MkdirAll(putold, 0o700))
+
+	util.CopyRootFs(rootfs, newroot)
+	util.MountProc(newroot)
+
+	util.Bail(syscall.PivotRoot(newroot, putold))
+
+	if err := os.Chdir("/"); err != nil {
+		util.MessageBail("failed to change dir after pivot root")
+	}
+
+	if err := syscall.Unmount("/.pivot", syscall.MNT_DETACH); err != nil {
+		util.Bail(fmt.Errorf("failed to unmount pivot: %s", err.Error()))
+	}
+
+	os.RemoveAll("/.pivot")
 }
