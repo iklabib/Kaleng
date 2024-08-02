@@ -62,6 +62,10 @@ func SetRlimits(rlimits []rlimit.Rlimit) {
 }
 
 func EnforceLandlock(config model.Landlock) {
+	if !landlock.Available() {
+		util.MessageBail("Landlock is not available")
+	}
+
 	var paths []*landlock.Path
 
 	if config.Tty {
@@ -86,9 +90,7 @@ func EnforceLandlock(config model.Landlock) {
 
 	for _, v := range config.Files {
 		lp, err := landlock.ParsePath(v)
-		if err != nil {
-			util.Bail(err)
-		}
+		util.Bail(err)
 		paths = append(paths, lp)
 	}
 

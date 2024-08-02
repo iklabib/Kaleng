@@ -39,14 +39,14 @@ var INTERNAL_ERROR = -1
 
 func Bail(err error) {
 	if err != nil {
-		format := "bail: {\"stdout\":\"\",\"stderr\":\"\",\"message\":\"%v\",\"metric\":{\"signal\":null,\"exit_code\":-1,\"sys_time\":0,\"time\":0}\n"
+		format := "{\"stdout\":\"\",\"stderr\":\"\",\"message\":\"%v\",\"metric\":{\"signal\":null,\"exit_code\":-1,\"sys_time\":0,\"time\":0}\n"
 		fmt.Printf(format, err)
 		os.Exit(INTERNAL_ERROR)
 	}
 }
 
 func MessageBail(msg string) {
-	format := "message bail: {\"stdout\":\"\",\"stderr\":\"\",\"message\":\"%s\",\"metric\":{\"signal\":null,\"exit_code\":-1,\"sys_time\":0,\"time\":0}\n"
+	format := "{\"stdout\":\"\",\"stderr\":\"\",\"message\":\"%s\",\"metric\":{\"signal\":null,\"exit_code\":-1,\"sys_time\":0,\"time\":0}\n"
 	fmt.Printf(format, msg)
 	os.Exit(INTERNAL_ERROR)
 }
@@ -65,7 +65,7 @@ func MountProc(path string) {
 }
 
 func CopyRootFs(source, target string) {
-	if err := DirCopy(source, target, 0, false); err != nil {
+	if err := CopyDirectory(source, target); err != nil {
 		Bail(fmt.Errorf("rootfs copy failed: %s", err.Error()))
 	}
 }
