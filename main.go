@@ -12,8 +12,8 @@ import (
 	"codeberg.org/iklabib/kaleng/model"
 	"codeberg.org/iklabib/kaleng/restrict"
 	"codeberg.org/iklabib/kaleng/util"
+	"codeberg.org/iklabib/kaleng/util/reexec"
 	"github.com/alecthomas/kong"
-	"github.com/docker/docker/pkg/reexec"
 )
 
 // TODO: cgroup
@@ -85,8 +85,8 @@ func setup() {
 	restrict.SetEnvs(config.Envs)
 	restrict.PivotRoot(cli.Execute.Root, cli.Execute.Rootfs)
 
-	// restrict.SetRlimits(config.Rlimits)
-	// restrict.EnforceLandlock(config.Landlock)
+	restrict.SetRlimits(config.Rlimits)
+	restrict.EnforceLandlock(config.Landlock)
 	restrict.EnforceSeccomp(config.Seccomp)
 
 	executable := cli.Execute.Args[0]
