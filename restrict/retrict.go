@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"codeberg.org/iklabib/kaleng/model"
@@ -89,6 +90,13 @@ func EnforceLandlock(config model.Landlock) {
 	}
 
 	for _, v := range config.Files {
+		segments := strings.SplitN(v, ":", 3)
+		fn := segments[2]
+		if _, err := os.Lstat(fn); os.IsNotExist(err) {
+			fmt.Println(fn)
+			continue
+		}
+
 		lp, err := landlock.ParsePath(v)
 		util.Bail(err)
 		paths = append(paths, lp)
@@ -138,6 +146,7 @@ func PivotRoot(newroot, rootfs string) {
 
 	util.CopyRootFs(rootfs, newroot)
 	util.MountProc(newroot)
+	util.MountBindDev(newroot)
 
 	util.Bail(syscall.PivotRoot(newroot, putold))
 

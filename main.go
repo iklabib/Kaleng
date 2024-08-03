@@ -64,8 +64,7 @@ func main() {
 	err = cmd.Start()
 	util.Bail(err)
 
-	err = cmd.Wait()
-	util.Bail(err)
+	cmd.Wait()
 }
 
 func init() {

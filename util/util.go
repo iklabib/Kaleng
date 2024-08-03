@@ -69,3 +69,32 @@ func CopyRootFs(source, target string) {
 		Bail(fmt.Errorf("rootfs copy failed: %s", err.Error()))
 	}
 }
+
+func MountBindDev(path string) {
+	devices := map[string]os.FileMode{
+		"/dev/null":    0o666,
+		"/dev/zero":    0o666,
+		"/dev/full":    0o666,
+		"/dev/urandom": 0o444,
+	}
+
+	for dev, mode := range devices {
+		target := filepath.Join(path, dev)
+		f, err := os.Create(target)
+		Bail(err)
+		defer f.Close()
+
+		Bail(os.Chmod(target, mode))
+
+		err = syscall.Mount(dev, target, "", syscall.MS_BIND, "")
+		if err != nil {
+			MessageBail(fmt.Sprintf("device: failed to bind %s to %s %v", dev, target, err))
+		}
+	}
+
+	// create shm
+	err := os.Mkdir(filepath.Join(path, "/dev/shm"), 01777)
+	if err != nil {
+		MessageBail(fmt.Sprintf("device: failed to create /dev/shm %v", err))
+	}
+}
