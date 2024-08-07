@@ -23,12 +23,14 @@ func main() {
 	var cli CLI
 	ctx := kong.Parse(&cli)
 
-	config, err := util.LoadConfig(cli.Execute.Config)
-	util.Bail(err)
-
 	if cli.Execute.Config == "" {
 		helpUsage(ctx.Model.Help)
 	}
+
+	config, err := util.LoadConfig(cli.Execute.Config)
+	util.Bail(err)
+
+	restrict.PreChroot(cli.Execute.Root, cli.Execute.Rootfs)
 
 	args := append([]string{"setup"}, os.Args[1:]...)
 	cmd := reexec.Command(args...)
@@ -37,6 +39,7 @@ func main() {
 	cmd.Stdin = os.Stdin
 
 	sysProcAttr := &syscall.SysProcAttr{
+		Chroot:                     cli.Execute.Root,
 		GidMappingsEnableSetgroups: true,
 		UidMappings: []syscall.SysProcIDMap{
 			{
@@ -82,7 +85,6 @@ func setup() {
 	util.Bail(err)
 
 	restrict.SetEnvs(config.Envs)
-	restrict.PivotRoot(cli.Execute.Root, cli.Execute.Rootfs)
 
 	restrict.SetRlimits(config.Rlimits)
 	restrict.EnforceLandlock(config.Landlock)
@@ -143,6 +145,8 @@ func execute(executable string, args []string) {
 	util.Bail(err)
 
 	fmt.Println(string(marshaled))
+
+	os.Exit(procState.ExitCode())
 }
 
 func helpUsage(help string) {

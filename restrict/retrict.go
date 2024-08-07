@@ -157,3 +157,28 @@ func PivotRoot(newroot, rootfs string) {
 
 	os.RemoveAll("/.pivot")
 }
+
+func PreChroot(root, rootfs string) {
+	info, err := os.Stat(root)
+	util.Bail(err)
+
+	if info.IsDir() {
+		util.CopyRootFs(rootfs, root)
+	} else { // assume mountable image
+		err := syscall.Mount(rootfs, root, "tmpfs", 0, "size=128M,mode=755")
+		util.Bail(err)
+	}
+
+	util.MountProc(root)
+	util.MountBindDev(root)
+}
+
+func PostChroot(root string) {
+	util.UnmoutProc(root)
+	util.UnmoutDev(root)
+	err := os.RemoveAll(root)
+	if err != nil {
+		err = fmt.Errorf("failed to remove rootfs %s %v", root, err.Error())
+		util.Bail(err)
+	}
+}

@@ -70,14 +70,14 @@ func CopyRootFs(source, target string) {
 	}
 }
 
-func MountBindDev(path string) {
-	devices := map[string]os.FileMode{
-		"/dev/null":    0o666,
-		"/dev/zero":    0o666,
-		"/dev/full":    0o666,
-		"/dev/urandom": 0o444,
-	}
+var devices = map[string]os.FileMode{
+	"/dev/null":    0o666,
+	"/dev/zero":    0o666,
+	"/dev/full":    0o666,
+	"/dev/urandom": 0o444,
+}
 
+func MountBindDev(path string) {
 	for dev, mode := range devices {
 		target := filepath.Join(path, dev)
 		f, err := os.Create(target)
@@ -93,8 +93,37 @@ func MountBindDev(path string) {
 	}
 
 	// create shm
-	err := os.Mkdir(filepath.Join(path, "/dev/shm"), 01777)
+	err := os.Mkdir(filepath.Join(path, "/dev/shm"), 0o1777)
 	if err != nil {
 		MessageBail(fmt.Sprintf("device: failed to create /dev/shm %v", err))
+	}
+}
+
+func UnmoutProc(path string) {
+	procPath := filepath.Join(path, "proc")
+	err := syscall.Unmount(procPath, syscall.MNT_DETACH)
+	Bail(err)
+}
+
+func UnmoutDev(path string) {
+	for dev := range devices {
+		devPath := filepath.Join(path, dev)
+		err := syscall.Unmount(devPath, syscall.MNT_DETACH)
+		if err != nil {
+			MessageBail(fmt.Sprintf("device: failed to unmount %s %v", dev, err))
+		}
+	}
+
+	// create shm
+	err := os.RemoveAll(filepath.Join(path, "/dev/shm"))
+	if err != nil {
+		MessageBail(fmt.Sprintf("device: failed to remove /dev/shm %v", err))
+	}
+}
+
+func CreateTmpfs(path string) {
+	err := syscall.Mount("tmpfs", path, "tmpfs", 0, "size=128M,mode=755")
+	if err != nil {
+		Bail(fmt.Errorf("failed to create tmpfs: %s", err.Error()))
 	}
 }
