@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"codeberg.org/iklabib/kaleng/model"
+	"codeberg.org/iklabib/kaleng/util/fastrand"
 	"github.com/elastic/go-ucfg/yaml"
 )
 
@@ -126,4 +127,12 @@ func CreateTmpfs(path string) {
 	if err != nil {
 		Bail(fmt.Errorf("failed to create tmpfs: %s", err.Error()))
 	}
+}
+
+func RandomNumber(n uint32) uint32 {
+	if n == 0 {
+		return fastrand.Uint32()
+	}
+
+	return fastrand.Uint32n(n)
 }
