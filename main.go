@@ -27,10 +27,13 @@ func main() {
 		helpUsage(ctx.Model.Help)
 	}
 
-	config, err := util.LoadConfig(cli.Execute.Config)
+	config, err := restrict.LoadConfig(cli.Execute.Config)
 	util.Bail(err)
 
 	restrict.PreChroot(cli.Execute.Root, cli.Execute.Rootfs)
+
+	// TODO: CgroupFD bad file descriptor
+	restrict.CGroup(cli.Execute.Root, config.Cgroup)
 
 	args := append([]string{"setup"}, os.Args[1:]...)
 	cmd := reexec.Command(args...)
@@ -68,6 +71,8 @@ func main() {
 	util.Bail(err)
 
 	cmd.Wait()
+
+	restrict.CleanChroot(cli.Execute.Root)
 }
 
 func init() {
@@ -81,11 +86,10 @@ func setup() {
 	var cli CLI
 	kong.Parse(&cli)
 
-	config, err := util.LoadConfig(cli.Execute.Config)
+	config, err := restrict.LoadConfig(cli.Execute.Config)
 	util.Bail(err)
 
 	restrict.SetEnvs(config.Envs)
-
 	restrict.SetRlimits(config.Rlimits)
 	restrict.EnforceLandlock(config.Landlock)
 	restrict.EnforceSeccomp(config.Seccomp)

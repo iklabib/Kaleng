@@ -1,17 +1,44 @@
 package restrict
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
 
-	"codeberg.org/iklabib/kaleng/model"
+	"codeberg.org/iklabib/kaleng/cgroup"
+	"codeberg.org/iklabib/kaleng/configs"
 	"codeberg.org/iklabib/kaleng/rlimit"
 	"codeberg.org/iklabib/kaleng/util"
 	"github.com/elastic/go-seccomp-bpf"
+	"github.com/elastic/go-ucfg/yaml"
 	"github.com/shoenig/go-landlock"
 )
+
+func LoadConfig(path string) (configs.KalengConfig, error) {
+	var config configs.KalengConfig
+
+	if _, err := os.Stat(path); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			util.MessageBail("config file does not exist")
+		} else {
+			util.MessageBail("failed to check config file")
+		}
+	}
+
+	// yaml is super set of json anyway
+	cfg, err := yaml.NewConfigWithFile(path)
+	if err != nil {
+		return config, err
+	}
+
+	if err := cfg.Unpack(&config); err != nil {
+		return config, err
+	}
+
+	return config, nil
+}
 
 func SetEnvs(envs map[string]string) {
 	os.Clearenv()
@@ -61,7 +88,7 @@ func SetRlimits(rlimits []rlimit.Rlimit) {
 	}
 }
 
-func EnforceLandlock(config model.Landlock) {
+func EnforceLandlock(config configs.Landlock) {
 	if !landlock.Available() {
 		util.MessageBail("Landlock is not available")
 	}
@@ -106,14 +133,15 @@ func EnforceLandlock(config model.Landlock) {
 }
 
 var namespacesMap map[string]uintptr = map[string]uintptr{
-	"CGROUP": syscall.CLONE_NEWCGROUP,
-	"UTS":    syscall.CLONE_NEWUTS,
-	"IPC":    syscall.CLONE_NEWIPC,
-	"MNT":    syscall.CLONE_NEWNS,
-	"USER":   syscall.CLONE_NEWUSER,
-	"PID":    syscall.CLONE_NEWPID,
-	"NET":    syscall.CLONE_NEWNET,
-	"TIME":   syscall.CLONE_NEWTIME,
+	"CGROUP":      syscall.CLONE_NEWCGROUP,
+	"UTS":         syscall.CLONE_NEWUTS,
+	"IPC":         syscall.CLONE_NEWIPC,
+	"MNT":         syscall.CLONE_NEWNS,
+	"USER":        syscall.CLONE_NEWUSER,
+	"PID":         syscall.CLONE_NEWPID,
+	"NET":         syscall.CLONE_NEWNET,
+	"TIME":        syscall.CLONE_NEWTIME,
+	"INTO_CGROUP": syscall.CLONE_INTO_CGROUP,
 }
 
 // keep in mind that clone is blocked by docker default seccomp profile unless you have CAP_SYS_ADMIN
@@ -171,14 +199,33 @@ func PreChroot(root, rootfs string) {
 
 	util.MountProc(root)
 	util.MountBindDev(root)
+	util.MountCGroupV2(root)
 }
 
-func PostChroot(root string) {
+func CleanChroot(root string) {
 	util.UnmoutProc(root)
 	util.UnmoutDev(root)
+	util.UnmountCGroup(root)
+
 	err := os.RemoveAll(root)
 	if err != nil {
 		err = fmt.Errorf("failed to remove rootfs %s %v", root, err.Error())
 		util.Bail(err)
 	}
+}
+
+func CGroup(name string, config configs.Cgroup) int {
+	cg, err := cgroup.New(name)
+	util.Bail(err)
+
+	cg.SetCpu(config.Cpu)
+	cg.SetMaximumMemory(config.MaxMemory)
+	cg.SetMaximumProcs(config.MaxProcs)
+	cg.DisableSwap()
+
+	cg.AddPid(os.Getpid())
+
+	fd, err := cg.GetFD()
+	util.Bail(err)
+	return fd
 }
