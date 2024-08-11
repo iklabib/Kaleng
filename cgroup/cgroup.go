@@ -71,6 +71,9 @@ func (cg *cgroup) SetMaximumProcs(lim int) {
 func (cg *cgroup) SetMaximumMemory(lim string) {
 	err := cg.SetControl("memory.max", lim)
 	util.Bail(err)
+
+	err = cg.SetControl("memory.oom.group", "1")
+	util.Bail(err)
 }
 
 func (cg *cgroup) AddPid(pid int) error {
