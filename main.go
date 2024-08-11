@@ -2,13 +2,16 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"syscall"
 	"time"
 
+	"codeberg.org/iklabib/kaleng/configs"
 	"codeberg.org/iklabib/kaleng/model"
 	"codeberg.org/iklabib/kaleng/restrict"
 	"codeberg.org/iklabib/kaleng/util"
@@ -119,12 +122,20 @@ func setup() {
 	executable := cli.Execute.Args[0]
 	args := cli.Execute.Args[1:]
 
-	execute(executable, args, cli.Execute.Root)
+	execute(executable, args, config)
 }
 
-func execute(executable string, args []string, name string) {
-	cmd := exec.Command(executable, args...)
+func execute(executable string, args []string, config configs.KalengConfig) {
+	var ctx context.Context
+	if config.TimeLimit == 0 {
+		ctx = context.Background()
+	} else {
+		withTimeout, cancel := context.WithTimeout(context.Background(), time.Duration(config.TimeLimit)*time.Second)
+		defer cancel()
+		ctx = withTimeout
+	}
 
+	cmd := exec.CommandContext(ctx, executable, args...)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -148,17 +159,25 @@ func execute(executable string, args []string, name string) {
 		Memory:   usage.Maxrss,                      // kb
 	}
 
+	result := model.Result{
+		Metric: metrics,
+		Stdout: stdout.String(),
+		Stderr: stderr.String(),
+	}
+
+	<-ctx.Done()
+
+	if err := ctx.Err(); errors.Is(err, context.DeadlineExceeded) {
+		result.Message = append(result.Message, "time limit exceeded")
+	} else if errors.Is(err, context.Canceled) {
+		result.Message = append(result.Message, "canceled")
+	}
+
 	if !procState.Exited() {
 		wt := procState.Sys().(syscall.WaitStatus)
 		if wt.Signaled() {
 			metrics.Signal = wt.Signal()
 		}
-	}
-
-	result := model.Result{
-		Metric: metrics,
-		Stdout: stdout.String(),
-		Stderr: stderr.String(),
 	}
 
 	// SIGSYS likely caused by seccomp violation

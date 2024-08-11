@@ -31,12 +31,13 @@ type Cpu struct {
 }
 
 type KalengConfig struct {
-	Envs       map[string]string `json:"envs"`
-	Namespaces []string          `json:"namespaces"`
-	Rlimits    []rlimit.Rlimit   `json:"rlimits"`
-	Seccomp    seccomp.Policy    `json:"seccomp"`
-	Cgroup     `json:"cgroup"`
-	Landlock   `json:"landlock"`
-	Uid        int `json:"uid"`
-	Gid        int `json:"gid"`
+	Envs       map[string]string `config:"envs" json:"envs"`
+	Namespaces []string          `config:"namespaces"  json:"namespaces"`
+	Rlimits    []rlimit.Rlimit   `config:"rlimits" json:"rlimits"`
+	Seccomp    seccomp.Policy    `config:"seccomp" json:"seccomp"`
+	Cgroup     `config:"cgroup" json:"cgroup"`
+	Landlock   `config:"landlock" json:"landlock"`
+	Uid        int `config:"uid" json:"uid"`
+	Gid        int `config:"gid" json:"gid"`
+	TimeLimit  int `config:"time_limit" json:"time_limit"` // s
 }
