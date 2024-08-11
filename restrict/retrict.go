@@ -212,20 +212,19 @@ func CleanChroot(root string) {
 		err = fmt.Errorf("failed to remove rootfs %s %v", root, err.Error())
 		util.Bail(err)
 	}
+
+	err = cgroup.DeleteGroup(root)
+	util.Bail(err)
 }
 
-func CGroup(name string, config configs.Cgroup) int {
+func CGroup(name string, config configs.Cgroup) *cgroup.CGroup {
 	cg, err := cgroup.New(name)
 	util.Bail(err)
 
 	cg.SetCpu(config.Cpu)
 	cg.SetMaximumMemory(config.MaxMemory)
-	cg.SetMaximumProcs(config.MaxPids)
+	cg.SetMaximumPids(config.MaxPids)
 	cg.DisableSwap()
 
-	cg.AddPid(os.Getpid())
-
-	fd, err := cg.GetFD()
-	util.Bail(err)
-	return fd
+	return cg
 }

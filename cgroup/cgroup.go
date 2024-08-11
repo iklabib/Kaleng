@@ -14,18 +14,32 @@ import (
 
 var cgroupRoot string = "/sys/fs/cgroup"
 
-type cgroup struct {
+type CGroup struct {
 	name     string
 	controls map[string]bool
 	fullPath string
 	proc     *os.File
 }
 
-func New(name string) (*cgroup, error) {
+func New(name string) (*CGroup, error) {
 	dir := filepath.Join(cgroupRoot, name)
 
 	if err := os.Mkdir(dir, 0o744); err != nil {
 		err = fmt.Errorf("failed to create new cgroup %s", err.Error())
+		return nil, err
+	}
+
+	cg, err := LoadGroup(name)
+	if err != nil {
+		return nil, err
+	}
+
+	return cg, nil
+}
+
+func LoadGroup(name string) (*CGroup, error) {
+	dir := filepath.Join(cgroupRoot, name)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		return nil, err
 	}
 
@@ -38,7 +52,7 @@ func New(name string) (*cgroup, error) {
 		return nil, fmt.Errorf("no controllers available")
 	}
 
-	cg := cgroup{
+	cg := CGroup{
 		name:     name,
 		fullPath: dir,
 		controls: map[string]bool{},
@@ -51,7 +65,7 @@ func New(name string) (*cgroup, error) {
 	return &cg, nil
 }
 
-func (cg *cgroup) SetCpu(cpu configs.Cpu) {
+func (cg *CGroup) SetCpu(cpu configs.Cpu) {
 	if cpu.Weight > 0 {
 		err := cg.SetControl("cpu.weight", fmt.Sprintf("%d", cpu.Weight))
 		util.Bail(err)
@@ -63,12 +77,21 @@ func (cg *cgroup) SetCpu(cpu configs.Cpu) {
 	}
 }
 
-func (cg *cgroup) SetMaximumProcs(lim int) {
+func (cg *CGroup) SetMaximumPids(lim int) {
+	// no-op
+	if lim == 0 {
+		return
+	}
 	err := cg.SetControl("pids.max", fmt.Sprintf("%d", lim))
 	util.Bail(err)
 }
 
-func (cg *cgroup) SetMaximumMemory(lim string) {
+func (cg *CGroup) SetMaximumMemory(lim string) {
+	// no-op
+	if lim == "" {
+		return
+	}
+
 	err := cg.SetControl("memory.max", lim)
 	util.Bail(err)
 
@@ -76,15 +99,15 @@ func (cg *cgroup) SetMaximumMemory(lim string) {
 	util.Bail(err)
 }
 
-func (cg *cgroup) AddPid(pid int) error {
+func (cg *CGroup) AddPid(pid int) error {
 	return cg.write("cgroup.procs", strconv.Itoa(pid))
 }
 
-func (cg *cgroup) IsControlAvailable(name string) bool {
+func (cg *CGroup) IsControlAvailable(name string) bool {
 	return cg.controls[name]
 }
 
-func (cg *cgroup) AddControl(ctl string) error {
+func (cg *CGroup) AddControl(ctl string) error {
 	if !cg.IsControlAvailable(ctl) {
 		return fmt.Errorf("unavailable control %s", ctl)
 	}
@@ -92,7 +115,7 @@ func (cg *cgroup) AddControl(ctl string) error {
 	return cg.writeSubTreeControl("+" + ctl)
 }
 
-func (cg *cgroup) RemoveControl(ctl string) error {
+func (cg *CGroup) RemoveControl(ctl string) error {
 	if !cg.IsControlAvailable(ctl) {
 		return fmt.Errorf("unavailable control %s", ctl)
 	}
@@ -100,7 +123,7 @@ func (cg *cgroup) RemoveControl(ctl string) error {
 	return cg.writeSubTreeControl("-" + ctl)
 }
 
-func (cg *cgroup) SetControl(name, lim string) error {
+func (cg *CGroup) SetControl(name, lim string) error {
 	ctl := filepath.Join(cg.fullPath, name)
 	if _, err := os.Stat(ctl); os.IsNotExist(err) {
 		return fmt.Errorf("invalid control %s", name)
@@ -109,7 +132,7 @@ func (cg *cgroup) SetControl(name, lim string) error {
 	return cg.write(name, lim)
 }
 
-func (cg *cgroup) writeSubTreeControl(ctl string) error {
+func (cg *CGroup) writeSubTreeControl(ctl string) error {
 	subTreeCtlPath := filepath.Join(cg.fullPath, "cgroup.subtree_control")
 	subTreeCtl, err := os.OpenFile(subTreeCtlPath, syscall.O_APPEND, 0o644)
 	if err != nil {
@@ -125,7 +148,7 @@ func (cg *cgroup) writeSubTreeControl(ctl string) error {
 	return nil
 }
 
-func (cg *cgroup) DisableSwap() error {
+func (cg *CGroup) DisableSwap() error {
 	// disable swap
 	if err := cg.write("memory.swap.max", "0"); err != nil {
 		return err
@@ -139,7 +162,7 @@ func (cg *cgroup) DisableSwap() error {
 	return nil
 }
 
-func (cg *cgroup) GetFD() (int, error) {
+func (cg *CGroup) GetFD() (int, error) {
 	if cg.proc != nil {
 		return int(cg.proc.Fd()), nil
 	}
@@ -154,11 +177,11 @@ func (cg *cgroup) GetFD() (int, error) {
 	return int(cg.proc.Fd()), nil
 }
 
-func (cg *cgroup) Kill() error {
+func (cg *CGroup) Kill() error {
 	return cg.write("cgroup.kill", "1")
 }
 
-func (cg *cgroup) write(name, lim string) error {
+func (cg *CGroup) write(name, lim string) error {
 	path := filepath.Join(cg.fullPath, name)
 	// no-op when does not exist
 	if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -176,4 +199,12 @@ func availableControls(path string) ([]string, error) {
 
 	controllers := strings.Split(string(rawBytes), " ")
 	return controllers, nil
+}
+
+func DeleteGroup(name string) error {
+	path := filepath.Join(cgroupRoot, name)
+	if err := os.RemoveAll(path); err != nil {
+		return fmt.Errorf("failed to delete cgroup group %s %v", name, err)
+	}
+	return nil
 }
