@@ -17,7 +17,7 @@ type Landlock struct {
 
 type Cgroup struct {
 	MaxMemory string `config:"max_memory" json:"max_memory" yaml:"max_memory"`
-	MaxProcs  int    `config:"max_procs" json:"max_procs" yaml:"max_procs"`
+	MaxPids   int    `config:"max_pids" json:"max_pids" yaml:"max_pids"`
 	Cpu       `config:"cpu" json:"cpu" yaml:"max_procs"`
 }
 

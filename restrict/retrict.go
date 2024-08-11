@@ -220,7 +220,7 @@ func CGroup(name string, config configs.Cgroup) int {
 
 	cg.SetCpu(config.Cpu)
 	cg.SetMaximumMemory(config.MaxMemory)
-	cg.SetMaximumProcs(config.MaxProcs)
+	cg.SetMaximumProcs(config.MaxPids)
 	cg.DisableSwap()
 
 	cg.AddPid(os.Getpid())
