@@ -14,8 +14,8 @@ type Metrics struct {
 }
 
 type Result struct {
-	Stdout  string  `json:"stdout"`
-	Stderr  string  `json:"stderr"`
-	Message string  `json:"message"`
-	Metric  Metrics `json:"metric"`
+	Stdout  string   `json:"stdout"`
+	Stderr  string   `json:"stderr"`
+	Message []string `json:"message"`
+	Metric  Metrics  `json:"metric"`
 }

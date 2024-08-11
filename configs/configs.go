@@ -16,9 +16,11 @@ type Landlock struct {
 }
 
 type Cgroup struct {
-	MaxMemory string `config:"max_memory" json:"max_memory" yaml:"max_memory"`
-	MaxPids   int    `config:"max_pids" json:"max_pids" yaml:"max_pids"`
-	Cpu       `config:"cpu" json:"cpu" yaml:"max_procs"`
+	MaxMemory      string `config:"max_memory" json:"max_memory" yaml:"max_memory"`
+	MaxPids        int    `config:"max_pids" json:"max_pids" yaml:"max_pids"`
+	MaxDepth       int    `config:"max_depth" json:"max_depth" yaml:"max_depth"`
+	MaxDescendants int    `config:"max_descendants" json:"max_descendants" yaml:"max_descendants"`
+	Cpu            `config:"cpu" json:"cpu" yaml:"max_procs"`
 }
 
 // no-op if default value

@@ -18,7 +18,16 @@ type CGroup struct {
 	name     string
 	controls map[string]bool
 	fullPath string
-	proc     *os.File
+	fd       int
+}
+
+type MemoryEvents struct {
+	Low          int
+	High         int
+	Max          int
+	Oom          int
+	OomKill      int
+	OomGroupKill int
 }
 
 func New(name string) (*CGroup, error) {
@@ -58,6 +67,15 @@ func LoadGroup(name string) (*CGroup, error) {
 		controls: map[string]bool{},
 	}
 
+	// https://github.com/golang/go/blob/master/src/syscall/exec_linux_test.go
+	const O_PATH = 0x200000
+	fd, err := syscall.Open(cg.fullPath, O_PATH, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	cg.fd = fd
+
 	for _, ctl := range controls {
 		cg.controls[ctl] = true
 	}
@@ -67,12 +85,12 @@ func LoadGroup(name string) (*CGroup, error) {
 
 func (cg *CGroup) SetCpu(cpu configs.Cpu) {
 	if cpu.Weight > 0 {
-		err := cg.SetControl("cpu.weight", fmt.Sprintf("%d", cpu.Weight))
+		err := cg.setControl("cpu.weight", fmt.Sprintf("%d", cpu.Weight))
 		util.Bail(err)
 	}
 
 	if cpu.Time > 0 && cpu.Period > 0 {
-		err := cg.SetControl("cpu.max", fmt.Sprintf("%d %d", cpu.Time, cpu.Period))
+		err := cg.setControl("cpu.max", fmt.Sprintf("%d %d", cpu.Time, cpu.Period))
 		util.Bail(err)
 	}
 }
@@ -82,7 +100,7 @@ func (cg *CGroup) SetMaximumPids(lim int) {
 	if lim == 0 {
 		return
 	}
-	err := cg.SetControl("pids.max", fmt.Sprintf("%d", lim))
+	err := cg.setControl("pids.max", fmt.Sprintf("%d", lim))
 	util.Bail(err)
 }
 
@@ -92,10 +110,10 @@ func (cg *CGroup) SetMaximumMemory(lim string) {
 		return
 	}
 
-	err := cg.SetControl("memory.max", lim)
+	err := cg.setControl("memory.max", lim)
 	util.Bail(err)
 
-	err = cg.SetControl("memory.oom.group", "1")
+	err = cg.setControl("memory.oom.group", "1")
 	util.Bail(err)
 }
 
@@ -123,7 +141,7 @@ func (cg *CGroup) RemoveControl(ctl string) error {
 	return cg.writeSubTreeControl("-" + ctl)
 }
 
-func (cg *CGroup) SetControl(name, lim string) error {
+func (cg *CGroup) setControl(name, lim string) error {
 	ctl := filepath.Join(cg.fullPath, name)
 	if _, err := os.Stat(ctl); os.IsNotExist(err) {
 		return fmt.Errorf("invalid control %s", name)
@@ -162,19 +180,32 @@ func (cg *CGroup) DisableSwap() error {
 	return nil
 }
 
-func (cg *CGroup) GetFD() (int, error) {
-	if cg.proc != nil {
-		return int(cg.proc.Fd()), nil
+func (cg *CGroup) SetMaximumDescendants(lim int) {
+	// no-op
+	if lim == 0 {
+		return
 	}
 
-	procs := filepath.Join(cg.fullPath, "cgroup.controllers")
-	f, err := os.Open(procs)
-	if err != nil {
-		return 0, err
-	}
-	cg.proc = f
+	err := cg.setControl("cgroup.max.descendants", strconv.Itoa(lim))
+	util.Bail(err)
+}
 
-	return int(cg.proc.Fd()), nil
+func (cg *CGroup) SetMaximumDepth(lim int) {
+	// no-op
+	if lim == 0 {
+		return
+	}
+
+	err := cg.setControl("cgroup.max.depth", strconv.Itoa(lim))
+	util.Bail(err)
+}
+
+func (cg *CGroup) GetFD() int {
+	return cg.fd
+}
+
+func (cg *CGroup) CloseFd() error {
+	return syscall.Close(cg.fd)
 }
 
 func (cg *CGroup) Kill() error {
@@ -199,6 +230,76 @@ func availableControls(path string) ([]string, error) {
 
 	controllers := strings.Split(string(rawBytes), " ")
 	return controllers, nil
+}
+
+func (cg *CGroup) PidsEvents() (int, error) {
+	path := filepath.Join(cg.fullPath, "pids.events")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return 0, err
+	}
+
+	trimmed := strings.TrimLeft(string(content), "max ")
+	trimmed = strings.TrimSpace(trimmed)
+
+	return strconv.Atoi(trimmed)
+}
+
+func (cg *CGroup) OomEvents() (MemoryEvents, error) {
+	path := filepath.Join(cg.fullPath, "memory.events")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return MemoryEvents{}, err
+	}
+
+	memEvents := MemoryEvents{}
+	trimmed := strings.TrimSpace(string(content))
+	for _, line := range strings.Split(trimmed, "\n") {
+		segments := strings.Split(line, " ")
+		key := segments[0]
+		val, err := strconv.Atoi(segments[1])
+		if err != nil {
+			return memEvents, err
+		}
+
+		switch key {
+		case "low":
+			memEvents.Low = val
+		case "high":
+			memEvents.High = val
+		case "max":
+			memEvents.Max = val
+		case "oom":
+			memEvents.Oom = val
+		case "oom_kill":
+			memEvents.OomKill = val
+		case "oom_group_kill":
+			memEvents.OomGroupKill = val
+		default:
+			return memEvents, fmt.Errorf("unknown key %s", key)
+		}
+	}
+
+	return memEvents, nil
+}
+
+// check for cgroup violations
+func (cg *CGroup) Violations() ([]string, error) {
+	var violations []string
+
+	if pidsEvents, err := cg.PidsEvents(); err != nil {
+		return violations, err
+	} else if pidsEvents > 0 {
+		violations = append(violations, "maximum pids restriction violated")
+	}
+
+	if oomEvents, err := cg.OomEvents(); err != nil {
+		return violations, err
+	} else if oomEvents.Oom > 0 || oomEvents.OomKill > 0 || oomEvents.OomGroupKill > 0 {
+		violations = append(violations, "memory restriction violated")
+	}
+
+	return violations, nil
 }
 
 func DeleteGroup(name string) error {

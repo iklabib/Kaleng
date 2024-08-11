@@ -224,6 +224,8 @@ func CGroup(name string, config configs.Cgroup) *cgroup.CGroup {
 	cg.SetCpu(config.Cpu)
 	cg.SetMaximumMemory(config.MaxMemory)
 	cg.SetMaximumPids(config.MaxPids)
+	cg.SetMaximumDepth(config.MaxDepth)
+	cg.SetMaximumDescendants(config.MaxDescendants)
 	cg.DisableSwap()
 
 	return cg

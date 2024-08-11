@@ -16,7 +16,7 @@ import (
 	"github.com/alecthomas/kong"
 )
 
-// TODO: cgroup
+// TODO: better cgroup violation report
 // TODO: better landlock violation report
 
 func main() {
@@ -32,12 +32,13 @@ func main() {
 
 	restrict.PreChroot(cli.Execute.Root, cli.Execute.Rootfs)
 
-	// TODO: CgroupFD bad file descriptor
-	restrict.CGroup(cli.Execute.Root, config.Cgroup)
+	cg := restrict.CGroup(cli.Execute.Root, config.Cgroup)
+	util.Bail(err)
 
 	args := append([]string{"setup"}, os.Args[1:]...)
 	cmd := reexec.Command(args...)
-	cmd.Stdout = os.Stdout
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 
@@ -58,6 +59,8 @@ func main() {
 				Size:        1,
 			},
 		},
+		UseCgroupFD: true,
+		CgroupFD:    cg.GetFD(),
 	}
 
 	// only apply namespaces if flags provided
@@ -71,6 +74,25 @@ func main() {
 	util.Bail(err)
 
 	cmd.Wait()
+
+	util.Bail(cg.CloseFd())
+
+	cgroupViolations, err := cg.Violations()
+	util.Bail(err)
+
+	if len(cgroupViolations) == 0 {
+		fmt.Print(stdout.String())
+	} else {
+		var result model.Result
+		err = json.Unmarshal(stdout.Bytes(), &result)
+		util.Bail(err)
+		result.Message = append(result.Message, cgroupViolations...)
+
+		content, err := json.Marshal(result)
+		util.Bail(err)
+
+		fmt.Print(string(content))
+	}
 
 	restrict.CleanChroot(cli.Execute.Root)
 }
@@ -97,10 +119,10 @@ func setup() {
 	executable := cli.Execute.Args[0]
 	args := cli.Execute.Args[1:]
 
-	execute(executable, args)
+	execute(executable, args, cli.Execute.Root)
 }
 
-func execute(executable string, args []string) {
+func execute(executable string, args []string, name string) {
 	cmd := exec.Command(executable, args...)
 
 	var stdout bytes.Buffer
@@ -139,10 +161,9 @@ func execute(executable string, args []string) {
 		Stderr: stderr.String(),
 	}
 
-	switch metrics.Signal {
 	// SIGSYS likely caused by seccomp violation
-	case syscall.SIGSYS:
-		result.Message = "restriction violated"
+	if metrics.Signal == syscall.SIGSYS {
+		result.Message = append(result.Message, "security restriction violated")
 	}
 
 	marshaled, err := json.Marshal(result)
