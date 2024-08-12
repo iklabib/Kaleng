@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"codeberg.org/iklabib/kaleng/cgroup"
 	"codeberg.org/iklabib/kaleng/configs"
 	"codeberg.org/iklabib/kaleng/model"
 	"codeberg.org/iklabib/kaleng/restrict"
@@ -62,8 +63,6 @@ func main() {
 				Size:        1,
 			},
 		},
-		UseCgroupFD: true,
-		CgroupFD:    cg.GetFD(),
 	}
 
 	// only apply namespaces if flags provided
@@ -122,10 +121,10 @@ func setup() {
 	executable := cli.Execute.Args[0]
 	args := cli.Execute.Args[1:]
 
-	execute(executable, args, config)
+	execute(executable, args, cli.Execute.Root, config)
 }
 
-func execute(executable string, args []string, config configs.KalengConfig) {
+func execute(executable string, args []string, name string, config configs.KalengConfig) {
 	var ctx context.Context
 	if config.TimeLimit == 0 {
 		ctx = context.Background()
@@ -135,12 +134,19 @@ func execute(executable string, args []string, config configs.KalengConfig) {
 		ctx = withTimeout
 	}
 
+	cg, err := cgroup.LoadGroup(name)
+	util.Bail(err)
+
 	cmd := exec.CommandContext(ctx, executable, args...)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	cmd.Stdin = os.Stdin
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		UseCgroupFD: true,
+		CgroupFD:    cg.GetFD(),
+	}
 
 	util.Bail(cmd.Start())
 
