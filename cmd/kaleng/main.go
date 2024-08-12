@@ -93,7 +93,7 @@ func main() {
 		content, err := json.Marshal(result)
 		util.Bail(err)
 
-		fmt.Print(string(content))
+		fmt.Println(string(content))
 	}
 
 	restrict.CleanChroot(cli.Execute.Root)
