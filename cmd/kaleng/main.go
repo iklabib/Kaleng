@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"syscall"
 	"time"
 
-	"codeberg.org/iklabib/kaleng/cgroup"
 	"codeberg.org/iklabib/kaleng/configs"
 	"codeberg.org/iklabib/kaleng/model"
 	"codeberg.org/iklabib/kaleng/restrict"
@@ -25,26 +25,24 @@ import (
 
 func main() {
 	var cli CLI
-	ctx := kong.Parse(&cli)
+	kong.Parse(cli)
 
-	if cli.Execute.Config == "" {
-		helpUsage(ctx.Model.Help)
-	}
+	buf, err := io.ReadAll(os.Stdin)
+	util.Bail(err)
 
-	config, err := restrict.LoadConfig(cli.Execute.Config)
+	config, err := restrict.LoadConfigFromStdin(buf)
 	util.Bail(err)
 
 	restrict.PreChroot(cli.Execute.Root, cli.Execute.Rootfs)
 
 	cg := restrict.CGroup(cli.Execute.Root, config.Cgroup)
-	util.Bail(err)
 
 	args := append([]string{"setup"}, os.Args[1:]...)
 	cmd := reexec.Command(args...)
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
+	cmd.Stdin = bytes.NewReader(buf)
 
 	sysProcAttr := &syscall.SysProcAttr{
 		Chroot:                     cli.Execute.Root,
@@ -63,6 +61,8 @@ func main() {
 				Size:        1,
 			},
 		},
+		UseCgroupFD: true,
+		CgroupFD:    cg.GetFD(),
 	}
 
 	// only apply namespaces if flags provided
@@ -110,7 +110,11 @@ func setup() {
 	var cli CLI
 	kong.Parse(&cli)
 
-	config, err := restrict.LoadConfig(cli.Execute.Config)
+	var config configs.KalengConfig
+	buf, err := io.ReadAll(os.Stdin)
+	util.Bail(err)
+
+	config, err = restrict.LoadConfigFromStdin(buf)
 	util.Bail(err)
 
 	restrict.SetEnvs(config.Envs)
@@ -121,10 +125,10 @@ func setup() {
 	executable := cli.Execute.Args[0]
 	args := cli.Execute.Args[1:]
 
-	execute(executable, args, cli.Execute.Root, config)
+	execute(executable, args, config)
 }
 
-func execute(executable string, args []string, name string, config configs.KalengConfig) {
+func execute(executable string, args []string, config configs.KalengConfig) {
 	var ctx context.Context
 	if config.TimeLimit == 0 {
 		ctx = context.Background()
@@ -134,19 +138,11 @@ func execute(executable string, args []string, name string, config configs.Kalen
 		ctx = withTimeout
 	}
 
-	cg, err := cgroup.LoadGroup(name)
-	util.Bail(err)
-
 	cmd := exec.CommandContext(ctx, executable, args...)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	cmd.Stdin = os.Stdin
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		UseCgroupFD: true,
-		CgroupFD:    cg.GetFD(),
-	}
 
 	util.Bail(cmd.Start())
 
@@ -206,7 +202,6 @@ func helpUsage(help string) {
 
 type CLI struct {
 	Execute struct {
-		Config string
 		Root   string
 		Rootfs string
 		Args   []string `arg:"" passthrough:""`

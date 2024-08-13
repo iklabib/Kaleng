@@ -16,6 +16,20 @@ import (
 	"github.com/shoenig/go-landlock"
 )
 
+func LoadConfigFromStdin(buf []byte) (configs.KalengConfig, error) {
+	var config configs.KalengConfig
+	cfg, err := yaml.NewConfig(buf)
+	if err != nil {
+		return config, err
+	}
+
+	if err := cfg.Unpack(&config); err != nil {
+		return config, err
+	}
+
+	return config, nil
+}
+
 func LoadConfig(path string) (configs.KalengConfig, error) {
 	var config configs.KalengConfig
 
@@ -188,7 +202,10 @@ func PivotRoot(newroot, rootfs string) {
 
 func PreChroot(root, rootfs string) {
 	info, err := os.Stat(root)
-	util.Bail(err)
+	if err != nil {
+		err = fmt.Errorf("error when checking root %s %v", root, err)
+		util.Bail(err)
+	}
 
 	if info.IsDir() {
 		util.CopyRootFs(rootfs, root)
