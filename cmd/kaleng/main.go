@@ -71,9 +71,7 @@ func execute(executable string, args []string, config configs.KalengConfig) {
 
 	cmd := exec.CommandContext(ctx, executable, args...)
 	var stdout bytes.Buffer
-	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
 
 	util.Bail(cmd.Start())
 
@@ -95,7 +93,6 @@ func execute(executable string, args []string, config configs.KalengConfig) {
 	result := model.Result{
 		Metric: metrics,
 		Stdout: stdout.String(),
-		Stderr: stderr.String(),
 	}
 
 	if err := ctx.Err(); err != nil {
