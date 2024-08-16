@@ -22,10 +22,11 @@ import (
 
 // TODO: better cgroup violation report
 // TODO: better landlock violation report
+// TODO: kill all cgroup process except for the init process
 
 func main() {
 	var cli CLI
-	kong.Parse(cli)
+	kong.Parse(&cli)
 
 	buf, err := io.ReadAll(os.Stdin)
 	util.Bail(err)
@@ -35,8 +36,6 @@ func main() {
 
 	restrict.PreChroot(cli.Execute.Root, cli.Execute.Rootfs)
 
-	cg := restrict.CGroup(cli.Execute.Root, config.Cgroup)
-
 	args := append([]string{"setup"}, os.Args[1:]...)
 	cmd := reexec.Command(args...)
 	var stdout bytes.Buffer
@@ -44,6 +43,7 @@ func main() {
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = bytes.NewReader(buf)
 
+	cg := restrict.CGroup(cli.Execute.Root, config.Cgroup)
 	sysProcAttr := &syscall.SysProcAttr{
 		Chroot:                     cli.Execute.Root,
 		GidMappingsEnableSetgroups: true,
@@ -129,14 +129,8 @@ func setup() {
 }
 
 func execute(executable string, args []string, config configs.KalengConfig) {
-	var ctx context.Context
-	if config.TimeLimit == 0 {
-		ctx = context.Background()
-	} else {
-		withTimeout, cancel := context.WithTimeout(context.Background(), time.Duration(config.TimeLimit)*time.Second)
-		defer cancel()
-		ctx = withTimeout
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(config.TimeLimit)*time.Second)
+	defer cancel()
 
 	cmd := exec.CommandContext(ctx, executable, args...)
 	var stdout bytes.Buffer
@@ -167,12 +161,12 @@ func execute(executable string, args []string, config configs.KalengConfig) {
 		Stderr: stderr.String(),
 	}
 
-	<-ctx.Done()
-
-	if err := ctx.Err(); errors.Is(err, context.DeadlineExceeded) {
-		result.Message = append(result.Message, "time limit exceeded")
-	} else if errors.Is(err, context.Canceled) {
-		result.Message = append(result.Message, "canceled")
+	if err := ctx.Err(); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			result.Message = append(result.Message, "time limit exceeded")
+		} else if errors.Is(err, context.Canceled) {
+			result.Message = append(result.Message, "canceled")
+		}
 	}
 
 	if !procState.Exited() {
