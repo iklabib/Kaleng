@@ -119,7 +119,7 @@ func setup() {
 
 	restrict.SetEnvs(config.Envs)
 	restrict.SetRlimits(config.Rlimits)
-	restrict.EnforceLandlock(config.Landlock)
+	restrict.EnforceLandlock(config.Files)
 	restrict.EnforceSeccomp(config.Seccomp)
 
 	executable := cli.Execute.Args[0]

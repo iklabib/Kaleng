@@ -102,34 +102,14 @@ func SetRlimits(rlimits []rlimit.Rlimit) {
 	}
 }
 
-func EnforceLandlock(config configs.Landlock) {
+func EnforceLandlock(files []string) {
 	if !landlock.Available() {
 		util.MessageBail("Landlock is not available")
 	}
 
 	var paths []*landlock.Path
 
-	if config.Tty {
-		paths = append(paths, landlock.TTY())
-	}
-
-	if config.Shared {
-		paths = append(paths, landlock.Shared())
-	}
-
-	if config.Tmp {
-		paths = append(paths, landlock.Tmp())
-	}
-
-	if config.Dns {
-		paths = append(paths, landlock.DNS())
-	}
-
-	if config.VMInfo {
-		paths = append(paths, landlock.VMInfo())
-	}
-
-	for _, v := range config.Files {
+	for _, v := range files {
 		lp, err := landlock.ParsePath(v)
 		util.Bail(err)
 		paths = append(paths, lp)

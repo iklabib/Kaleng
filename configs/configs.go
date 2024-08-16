@@ -5,16 +5,6 @@ import (
 	"github.com/elastic/go-seccomp-bpf"
 )
 
-type Landlock struct {
-	Files  []string `json:"files"` // fd:rwxc:/path
-	Tty    bool     `json:"tty"`
-	Shared bool     `json:"shared"`
-	Tmp    bool     `json:"tmp"`
-	VMInfo bool     `json:"vm_info"`
-	Dns    bool     `json:"dns"`
-	Certs  bool     `json:"certs"`
-}
-
 type Cgroup struct {
 	MaxMemory      string `config:"max_memory" json:"max_memory" yaml:"max_memory"`
 	MaxPids        int    `config:"max_pids" json:"max_pids" yaml:"max_pids"`
@@ -36,8 +26,8 @@ type KalengConfig struct {
 	Rlimits    []rlimit.Rlimit   `config:"rlimits" json:"rlimits"`
 	Seccomp    seccomp.Policy    `config:"seccomp" json:"seccomp"`
 	Cgroup     `config:"cgroup" json:"cgroup"`
-	Landlock   `config:"landlock" json:"landlock"`
-	Uid        int `config:"uid" json:"uid"`
-	Gid        int `config:"gid" json:"gid"`
-	TimeLimit  int `config:"time_limit" json:"time_limit"` // s
+	Files      []string `config:"files" json:"files"` // fd:rwxc:/path
+	Uid        int      `config:"uid" json:"uid"`
+	Gid        int      `config:"gid" json:"gid"`
+	TimeLimit  int      `config:"time_limit" json:"time_limit"` // s
 }
