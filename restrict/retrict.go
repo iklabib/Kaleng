@@ -1,8 +1,8 @@
 package restrict
 
 import (
-	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -16,7 +16,17 @@ import (
 	"github.com/shoenig/go-landlock"
 )
 
-func LoadConfigFromStdin(buf []byte) (configs.KalengConfig, error) {
+func Setup() configs.KalengConfig {
+	config := LoadConfig()
+	SetEnvs(config.Envs)
+	SetRlimits(config.Rlimits)
+	EnforceLandlock(config.Files)
+	EnforceSeccomp(config.Seccomp)
+
+	return config
+}
+
+func Config(buf []byte) (configs.KalengConfig, error) {
 	var config configs.KalengConfig
 	cfg, err := yaml.NewConfig(buf)
 	if err != nil {
@@ -30,28 +40,14 @@ func LoadConfigFromStdin(buf []byte) (configs.KalengConfig, error) {
 	return config, nil
 }
 
-func LoadConfig(path string) (configs.KalengConfig, error) {
-	var config configs.KalengConfig
+func LoadConfig() configs.KalengConfig {
+	buf, err := io.ReadAll(os.Stdin)
+	util.Bail(err)
 
-	if _, err := os.Stat(path); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			util.MessageBail("config file does not exist")
-		} else {
-			util.MessageBail("failed to check config file")
-		}
-	}
+	config, err := Config(buf)
+	util.Bail(err)
 
-	// yaml is super set of json anyway
-	cfg, err := yaml.NewConfigWithFile(path)
-	if err != nil {
-		return config, err
-	}
-
-	if err := cfg.Unpack(&config); err != nil {
-		return config, err
-	}
-
-	return config, nil
+	return config
 }
 
 func SetEnvs(envs map[string]string) {

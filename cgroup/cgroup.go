@@ -284,22 +284,22 @@ func (cg *CGroup) OomEvents() (MemoryEvents, error) {
 }
 
 // check for cgroup violations
-func (cg *CGroup) Violations() ([]string, error) {
+func (cg *CGroup) Violations() []string {
 	var violations []string
 
 	if pidsEvents, err := cg.PidsEvents(); err != nil {
-		return violations, err
+		util.Bail(err)
 	} else if pidsEvents > 0 {
 		violations = append(violations, "maximum pids restriction violated")
 	}
 
 	if oomEvents, err := cg.OomEvents(); err != nil {
-		return violations, err
+		util.Bail(err)
 	} else if oomEvents.Oom > 0 || oomEvents.OomKill > 0 || oomEvents.OomGroupKill > 0 {
 		violations = append(violations, "memory restriction violated")
 	}
 
-	return violations, nil
+	return violations
 }
 
 func DeleteGroup(name string) error {

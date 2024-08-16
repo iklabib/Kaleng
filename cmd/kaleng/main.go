@@ -28,71 +28,23 @@ func main() {
 	var cli CLI
 	kong.Parse(&cli)
 
-	buf, err := io.ReadAll(os.Stdin)
-	util.Bail(err)
+	stdout, violations := execSetup(cli)
+	defer restrict.CleanChroot(cli.Execute.Root)
 
-	config, err := restrict.LoadConfigFromStdin(buf)
-	util.Bail(err)
-
-	restrict.PreChroot(cli.Execute.Root, cli.Execute.Rootfs)
-
-	args := append([]string{"setup"}, os.Args[1:]...)
-	cmd := reexec.Command(args...)
-	var stdout bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = bytes.NewReader(buf)
-
-	cg := restrict.CGroup(cli.Execute.Root, config.Cgroup)
-	sysProcAttr := &syscall.SysProcAttr{
-		Chroot:                     cli.Execute.Root,
-		GidMappingsEnableSetgroups: true,
-		UidMappings: []syscall.SysProcIDMap{
-			{
-				HostID:      os.Getuid(),
-				ContainerID: config.Uid,
-				Size:        1,
-			},
-		},
-		GidMappings: []syscall.SysProcIDMap{
-			{
-				HostID:      os.Getgid(),
-				ContainerID: config.Gid,
-				Size:        1,
-			},
-		},
-		UseCgroupFD: true,
-		CgroupFD:    cg.GetFD(),
-		Cloneflags:  restrict.GetNamespaceFlag(config.Namespaces),
-	}
-
-	cmd.SysProcAttr = sysProcAttr
-
-	err = cmd.Start()
-	util.Bail(err)
-
-	cmd.Wait()
-
-	util.Bail(cg.CloseFd())
-
-	cgroupViolations, err := cg.Violations()
-	util.Bail(err)
-
-	if len(cgroupViolations) == 0 {
+	if len(violations) == 0 {
 		fmt.Print(stdout.String())
-	} else {
-		var result model.Result
-		err = json.Unmarshal(stdout.Bytes(), &result)
-		util.Bail(err)
-		result.Message = append(result.Message, cgroupViolations...)
-
-		content, err := json.Marshal(result)
-		util.Bail(err)
-
-		fmt.Println(string(content))
+		os.Exit(0)
 	}
 
-	restrict.CleanChroot(cli.Execute.Root)
+	var result model.Result
+	err := json.Unmarshal(stdout.Bytes(), &result)
+	util.Bail(err)
+	result.Message = append(result.Message, violations...)
+
+	content, err := json.Marshal(result)
+	util.Bail(err)
+
+	fmt.Println(string(content))
 }
 
 func init() {
@@ -106,18 +58,7 @@ func setup() {
 	var cli CLI
 	kong.Parse(&cli)
 
-	var config configs.KalengConfig
-	buf, err := io.ReadAll(os.Stdin)
-	util.Bail(err)
-
-	config, err = restrict.LoadConfigFromStdin(buf)
-	util.Bail(err)
-
-	restrict.SetEnvs(config.Envs)
-	restrict.SetRlimits(config.Rlimits)
-	restrict.EnforceLandlock(config.Files)
-	restrict.EnforceSeccomp(config.Seccomp)
-
+	config := restrict.Setup()
 	executable := cli.Execute.Args[0]
 	args := cli.Execute.Args[1:]
 
@@ -183,6 +124,50 @@ func execute(executable string, args []string, config configs.KalengConfig) {
 	fmt.Println(string(marshaled))
 
 	os.Exit(procState.ExitCode())
+}
+
+func execSetup(cli CLI) (bytes.Buffer, []string) {
+	buf, err := io.ReadAll(os.Stdin)
+	util.Bail(err)
+
+	config, err := restrict.Config(buf)
+	util.Bail(err)
+	restrict.PreChroot(cli.Execute.Root, cli.Execute.Rootfs)
+
+	cg := restrict.CGroup(cli.Execute.Root, config.Cgroup)
+	defer cg.CloseFd()
+
+	args := append([]string{"setup"}, os.Args[1:]...)
+	cmd := reexec.Command(args...)
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stdin = bytes.NewReader(buf)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Chroot:                     cli.Execute.Root,
+		GidMappingsEnableSetgroups: true,
+		UidMappings: []syscall.SysProcIDMap{
+			{
+				HostID:      os.Getuid(),
+				ContainerID: config.Uid,
+				Size:        1,
+			},
+		},
+		GidMappings: []syscall.SysProcIDMap{
+			{
+				HostID:      os.Getgid(),
+				ContainerID: config.Gid,
+				Size:        1,
+			},
+		},
+		UseCgroupFD: true,
+		CgroupFD:    cg.GetFD(),
+		Cloneflags:  restrict.GetNamespaceFlag(config.Namespaces),
+	}
+
+	util.Bail(cmd.Start())
+	cmd.Wait()
+
+	return stdout, cg.Violations()
 }
 
 func helpUsage(help string) {
