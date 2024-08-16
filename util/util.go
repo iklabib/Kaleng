@@ -3,7 +3,9 @@ package util
 import (
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"syscall"
 
 	"codeberg.org/iklabib/kaleng/util/fastrand"
@@ -122,4 +124,24 @@ func RandomNumber(n uint32) uint32 {
 	}
 
 	return fastrand.Uint32n(n)
+}
+
+func LookupUser(username string) int {
+	user, err := user.Lookup(username)
+	Bail(err)
+
+	uid, err := strconv.Atoi(user.Uid)
+	Bail(err)
+
+	return uid
+}
+
+func LookupGroup(group string) int {
+	user, err := user.LookupGroup(group)
+	Bail(err)
+
+	gid, err := strconv.Atoi(user.Gid)
+	Bail(err)
+
+	return gid
 }

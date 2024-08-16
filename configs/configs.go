@@ -27,7 +27,7 @@ type KalengConfig struct {
 	Seccomp    seccomp.Policy    `config:"seccomp" json:"seccomp"`
 	Cgroup     `config:"cgroup" json:"cgroup"`
 	Files      []string `config:"files" json:"files"` // fd:rwxc:/path
-	Uid        int      `config:"uid" json:"uid"`
-	Gid        int      `config:"gid" json:"gid"`
+	User       string   `config:"user" json:"user"`
+	Group      string   `config:"group" json:"group"`
 	TimeLimit  int      `config:"time_limit" json:"time_limit"` // s
 }

@@ -134,6 +134,9 @@ func execSetup(cli CLI) (bytes.Buffer, []string) {
 	cg := restrict.CGroup(cli.Execute.Root, config.Cgroup)
 	defer cg.CloseFd()
 
+	uid := util.LookupUser(config.User)
+	gid := util.LookupGroup(config.Group)
+
 	args := append([]string{"setup"}, os.Args[1:]...)
 	cmd := reexec.Command(args...)
 	var stdout bytes.Buffer
@@ -145,14 +148,14 @@ func execSetup(cli CLI) (bytes.Buffer, []string) {
 		UidMappings: []syscall.SysProcIDMap{
 			{
 				HostID:      os.Getuid(),
-				ContainerID: config.Uid,
+				ContainerID: uid,
 				Size:        1,
 			},
 		},
 		GidMappings: []syscall.SysProcIDMap{
 			{
 				HostID:      os.Getgid(),
-				ContainerID: config.Gid,
+				ContainerID: gid,
 				Size:        1,
 			},
 		},
