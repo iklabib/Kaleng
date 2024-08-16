@@ -63,11 +63,7 @@ func main() {
 		},
 		UseCgroupFD: true,
 		CgroupFD:    cg.GetFD(),
-	}
-
-	// only apply namespaces if flags provided
-	if len(config.Namespaces) > 0 {
-		sysProcAttr.Cloneflags = restrict.GetNamespaceFlag(config.Namespaces)
+		Cloneflags:  restrict.GetNamespaceFlag(config.Namespaces),
 	}
 
 	cmd.SysProcAttr = sysProcAttr
