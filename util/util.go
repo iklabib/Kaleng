@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"syscall"
 
+	"codeberg.org/iklabib/kaleng/configs"
 	"codeberg.org/iklabib/kaleng/util/fastrand"
 )
 
@@ -40,6 +41,20 @@ func MountProc(path string) {
 	Bail(err)
 }
 
+func BindMount(parent string, bind configs.Bind) {
+	target := filepath.Join(parent, bind.Target)
+	var flags uintptr = syscall.MS_BIND | syscall.MS_NODEV | syscall.MS_PRIVATE | syscall.MS_NOSUID
+	err := syscall.Mount(bind.Source, target, bind.FsType, flags, bind.Data)
+	if err != nil {
+		Bail(fmt.Errorf("failed to bind mount %s %s", bind.Source, err.Error()))
+	}
+}
+
+func BindUnmount(target string) {
+	err := syscall.Unmount(target, syscall.MNT_DETACH)
+	Bail(err)
+}
+
 func CopyRootFs(source, target string) {
 	if err := CopyDirectory(source, target); err != nil {
 		Bail(fmt.Errorf("rootfs copy failed: %s", err.Error()))
@@ -54,6 +69,8 @@ var devices = map[string]os.FileMode{
 }
 
 func MountBindDev(path string) {
+	os.Mkdir(filepath.Join(path, "dev"), 0o751)
+
 	for dev, mode := range devices {
 		target := filepath.Join(path, dev)
 		f, err := os.Create(target)
@@ -103,11 +120,13 @@ func UnmoutDev(path string) {
 	}
 }
 
-func CreateTmpfs(path string) {
-	err := syscall.Mount("tmpfs", path, "tmpfs", 0, "size=128M,mode=755")
-	if err != nil {
-		Bail(fmt.Errorf("failed to create tmpfs: %s", err.Error()))
-	}
+func MountMnt(path string, size uint) {
+	tmpPath := filepath.Join(path, "tmp")
+	os.MkdirAll(tmpPath, 0o777)
+	var flags uintptr = syscall.MS_NODEV | syscall.MS_NOSUID | syscall.MS_NOSUID
+	data := fmt.Sprintf("size=%d,mode=1777", size)
+	err := syscall.Mount("tmpfs", tmpPath, "tmpfs", flags, data)
+	Bail(err)
 }
 
 func MountCGroupV2(path string) {

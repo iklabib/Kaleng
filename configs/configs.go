@@ -20,14 +20,22 @@ type Cpu struct {
 	Weight uint `json:"weight"` // cpu.weight
 }
 
+type Bind struct {
+	Source string `config:"source" json:"source"`
+	Target string `config:"target" json:"target"`
+	FsType string `config:"fstype" json:"fstype"`
+	Data   string `config:"data" json:"data"`
+}
+
 type KalengConfig struct {
+	Cgroup     `config:"cgroup" json:"cgroup"`
 	Envs       map[string]string `config:"envs" json:"envs"`
 	Namespaces []string          `config:"namespaces"  json:"namespaces"`
 	Rlimits    []rlimit.Rlimit   `config:"rlimits" json:"rlimits"`
 	Seccomp    seccomp.Policy    `config:"seccomp" json:"seccomp"`
-	Cgroup     `config:"cgroup" json:"cgroup"`
-	Files      []string `config:"files" json:"files"` // fd:rwxc:/path
-	User       string   `config:"user" json:"user"`
-	Group      string   `config:"group" json:"group"`
-	TimeLimit  int      `config:"time_limit" json:"time_limit"` // s
+	User       string            `config:"user" json:"user"`
+	Group      string            `config:"group" json:"group"`
+	TimeLimit  int               `config:"time_limit" json:"time_limit"` // s
+	Files      []string          `config:"files" json:"files"`           // fd:rwxc:/path
+	Binds      []Bind            `config:"binds" json:"binds"`
 }

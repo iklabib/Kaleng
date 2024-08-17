@@ -28,8 +28,8 @@ func main() {
 	var cli CLI
 	kong.Parse(&cli)
 
-	stdout, violations := execSetup(cli)
-	defer restrict.CleanChroot(cli.Execute.Root)
+	stdout, violations, config := execSetup(cli)
+	defer restrict.CleanChroot(cli.Execute.Root, config.Binds)
 
 	if len(violations) == 0 {
 		fmt.Print(stdout.String())
@@ -123,13 +123,14 @@ func execute(executable string, args []string, config configs.KalengConfig) {
 	os.Exit(procState.ExitCode())
 }
 
-func execSetup(cli CLI) (bytes.Buffer, []string) {
+func execSetup(cli CLI) (bytes.Buffer, []string, configs.KalengConfig) {
 	buf, err := io.ReadAll(os.Stdin)
 	util.Bail(err)
 
 	config, err := restrict.Config(buf)
 	util.Bail(err)
-	restrict.PreChroot(cli.Execute.Root, cli.Execute.Rootfs)
+
+	restrict.PreChroot(cli.Execute.Root, config.Binds)
 
 	cg := restrict.CGroup(cli.Execute.Root, config.Cgroup)
 	defer cg.CloseFd()
@@ -167,7 +168,7 @@ func execSetup(cli CLI) (bytes.Buffer, []string) {
 	util.Bail(cmd.Start())
 	cmd.Wait()
 
-	return stdout, cg.Violations()
+	return stdout, cg.Violations(), config
 }
 
 func helpUsage(help string) {

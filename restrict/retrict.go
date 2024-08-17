@@ -176,33 +176,48 @@ func PivotRoot(newroot, rootfs string) {
 	os.RemoveAll("/.pivot")
 }
 
-func PreChroot(root, rootfs string) {
-	info, err := os.Stat(root)
+func PreChroot(root string, binds []configs.Bind) {
+	_, err := os.Stat(root)
 	if err != nil {
 		err = fmt.Errorf("error when checking root %s %v", root, err)
 		util.Bail(err)
 	}
 
-	if info.IsDir() {
-		util.CopyRootFs(rootfs, root)
-	} else { // assume mountable image
-		err := syscall.Mount(rootfs, root, "tmpfs", 0, "size=128M,mode=755")
-		util.Bail(err)
+	for _, bind := range binds {
+		if bind.Target == "" {
+			bind.Target = bind.Source
+		}
+
+		os.MkdirAll(filepath.Join(root, bind.Target), 0o755)
+
+		util.BindMount(root, bind)
 	}
 
 	util.MountProc(root)
 	util.MountBindDev(root)
 	util.MountCGroupV2(root)
+	util.MountMnt(root, 64*1024*1024)
 }
 
-func CleanChroot(root string) {
+func CleanChroot(root string, binds []configs.Bind) {
+	for _, bind := range binds {
+		target := bind.Target
+		if target == "" {
+			target = bind.Source
+		}
+
+		target = filepath.Join(root, target)
+		util.BindUnmount(target)
+	}
+
+	util.BindUnmount(filepath.Join(root, "tmp"))
 	util.UnmoutProc(root)
 	util.UnmoutDev(root)
 	util.UnmountCGroup(root)
 
 	err := os.RemoveAll(root)
 	if err != nil {
-		err = fmt.Errorf("failed to remove rootfs %s %v", root, err.Error())
+		err = fmt.Errorf("failed to remove rootfs %s %s", root, err.Error())
 		util.Bail(err)
 	}
 
