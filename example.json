@@ -1,6 +1,6 @@
 {
-  "uid": 1000,
-  "gid": 1000,
+  "user": "ubuntu",
+  "group": "ubuntu",
   "time_limit": 1,
   "rlimits": [
     { "resource": "RLIMIT_CORE", "soft": 1, "hard": 1 },
@@ -8,7 +8,7 @@
   ],
   "namespaces": ["CGROUP", "UTS", "IPC", "MNT", "USER", "PID", "NET", "TIME", "INTO_CGROUP"],
   "cgroup": {
-    "max_pids": 40,
+    "max_pids": 50,
     "max_memory": "64M",
     "max_descendants": 1,
     "cpu": {
@@ -17,18 +17,39 @@
       "period": 100000
     }
   },
-  "landlock": {
-    "tty": false,
-    "shared": true,
-    "tmp": true,
-    "vm_info": false,
-    "dns": false,
-    "certs": false,
-    "files": [
-      "d:rx:/app",
-      "d:r:/sys/fs/cgroup"
-    ]
-  },
+  "files": [
+    "d:rx:/",
+    "d:rwxc:/tmp",
+    "f:rw:/dev/null",
+    "f:rw:/dev/zero",
+    "f:rw:/dev/full"
+  ],
+  "binds": [
+    {
+      "source": "/bin",
+      "target": "/bin"
+    },
+    {
+      "source": "/lib",
+      "target": "/lib"
+    },
+    {
+      "source": "/lib64",
+      "target": "/lib64",
+    },
+    {
+      "source": "/usr/bin",
+      "target": "/usr/bin",
+    },
+    {
+      "source": "/usr/lib",
+      "target": "/usr/lib",
+    },
+    {
+      "source": "/usr/lib64",
+      "target": "/usr/lib64",
+    },
+  ],
   "seccomp": {
     "default_action": "allow",
     "syscalls": [
