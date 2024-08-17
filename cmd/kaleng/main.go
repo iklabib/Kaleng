@@ -28,7 +28,15 @@ func main() {
 	var cli CLI
 	kong.Parse(&cli)
 
-	stdout, violations, config := execSetup(cli)
+	buf, err := io.ReadAll(os.Stdin)
+	util.Bail(err)
+
+	config, err := restrict.Config(buf)
+	util.Bail(err)
+
+	restrict.PreChroot(cli.Execute.Root, config.Binds)
+
+	stdout, violations := execSetup(cli.Execute.Root, bytes.NewBuffer(buf), config)
 	defer restrict.CleanChroot(cli.Execute.Root, config.Binds)
 
 	if len(violations) == 0 {
@@ -37,8 +45,9 @@ func main() {
 	}
 
 	var result model.Result
-	err := json.Unmarshal(stdout.Bytes(), &result)
+	err = json.Unmarshal(stdout.Bytes(), &result)
 	util.Bail(err)
+
 	result.Message = append(result.Message, violations...)
 
 	content, err := json.Marshal(result)
@@ -123,16 +132,8 @@ func execute(executable string, args []string, config configs.KalengConfig) {
 	os.Exit(procState.ExitCode())
 }
 
-func execSetup(cli CLI) (bytes.Buffer, []string, configs.KalengConfig) {
-	buf, err := io.ReadAll(os.Stdin)
-	util.Bail(err)
-
-	config, err := restrict.Config(buf)
-	util.Bail(err)
-
-	restrict.PreChroot(cli.Execute.Root, config.Binds)
-
-	cg := restrict.CGroup(cli.Execute.Root, config.Cgroup)
+func execSetup(root string, stdin io.Reader, config configs.KalengConfig) (bytes.Buffer, []string) {
+	cg := restrict.CGroup(root, config.Cgroup)
 	defer cg.CloseFd()
 
 	uid := util.LookupUser(config.User)
@@ -142,9 +143,9 @@ func execSetup(cli CLI) (bytes.Buffer, []string, configs.KalengConfig) {
 	cmd := reexec.Command(args...)
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
-	cmd.Stdin = bytes.NewReader(buf)
+	cmd.Stdin = stdin
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Chroot:                     cli.Execute.Root,
+		Chroot:                     root,
 		GidMappingsEnableSetgroups: true,
 		UidMappings: []syscall.SysProcIDMap{
 			{
@@ -168,7 +169,7 @@ func execSetup(cli CLI) (bytes.Buffer, []string, configs.KalengConfig) {
 	util.Bail(cmd.Start())
 	cmd.Wait()
 
-	return stdout, cg.Violations(), config
+	return stdout, cg.Violations()
 }
 
 func helpUsage(help string) {
@@ -178,8 +179,7 @@ func helpUsage(help string) {
 
 type CLI struct {
 	Execute struct {
-		Root   string
-		Rootfs string
-		Args   []string `arg:"" passthrough:""`
+		Root string
+		Args []string `arg:"" passthrough:""`
 	} `cmd:""`
 }
