@@ -10,6 +10,7 @@ type Metrics struct {
 	ExitCode int           `json:"exit_code"`
 	SysTime  time.Duration `json:"sys_time"`
 	UserTime time.Duration `json:"time"`
+	WallTime time.Duration `json:"wall_time"`
 	Memory   int64         `json:"memory"`
 }
 

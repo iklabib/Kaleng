@@ -82,9 +82,11 @@ func execute(executable string, args []string, config configs.KalengConfig) {
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
 
+	start := time.Now()
 	util.Bail(cmd.Start())
 
 	cmd.Wait()
+	wallTime := time.Since(start)
 
 	procState := cmd.ProcessState
 	usage, ok := procState.SysUsage().(*syscall.Rusage)
@@ -93,6 +95,7 @@ func execute(executable string, args []string, config configs.KalengConfig) {
 	}
 
 	metrics := model.Metrics{
+		WallTime: wallTime,
 		ExitCode: procState.ExitCode(),
 		UserTime: time.Duration(usage.Utime.Nano()), // ns
 		SysTime:  time.Duration(usage.Stime.Nano()), // ns
