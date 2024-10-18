@@ -4,9 +4,9 @@
   "time_limit": 1,
   "rlimits": [
     { "resource": "RLIMIT_CORE", "soft": 1, "hard": 1 },
-    { "resource": "RLIMIT_CPU", "soft": 1, "hard": 2 },
+    { "resource": "RLIMIT_CPU", "soft": 1, "hard": 2 }
   ],
-  "namespaces": ["CGROUP", "UTS", "IPC", "MNT", "USER", "PID", "NET", "TIME", "INTO_CGROUP"],
+  "namespaces": ["CGROUP", "UTS", "IPC", "MNT", "USER", "PID", "NET", "TIME"],
   "cgroup": {
     "max_pids": 50,
     "max_memory": "64M",
@@ -35,20 +35,20 @@
     },
     {
       "source": "/lib64",
-      "target": "/lib64",
+      "target": "/lib64"
     },
     {
       "source": "/usr/bin",
-      "target": "/usr/bin",
+      "target": "/usr/bin"
     },
     {
       "source": "/usr/lib",
-      "target": "/usr/lib",
+      "target": "/usr/lib"
     },
     {
       "source": "/usr/lib64",
-      "target": "/usr/lib64",
-    },
+      "target": "/usr/lib64"
+    }
   ],
   "seccomp": {
     "default_action": "allow",

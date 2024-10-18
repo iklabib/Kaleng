@@ -123,15 +123,14 @@ func EnforceLandlock(files []string) {
 }
 
 var namespacesMap map[string]uintptr = map[string]uintptr{
-	"CGROUP":      syscall.CLONE_NEWCGROUP,
-	"UTS":         syscall.CLONE_NEWUTS,
-	"IPC":         syscall.CLONE_NEWIPC,
-	"MNT":         syscall.CLONE_NEWNS,
-	"USER":        syscall.CLONE_NEWUSER,
-	"PID":         syscall.CLONE_NEWPID,
-	"NET":         syscall.CLONE_NEWNET,
-	"TIME":        syscall.CLONE_NEWTIME,
-	"INTO_CGROUP": syscall.CLONE_INTO_CGROUP,
+	"CGROUP": syscall.CLONE_NEWCGROUP,
+	"UTS":    syscall.CLONE_NEWUTS,
+	"IPC":    syscall.CLONE_NEWIPC,
+	"MNT":    syscall.CLONE_NEWNS,
+	"USER":   syscall.CLONE_NEWUSER,
+	"PID":    syscall.CLONE_NEWPID,
+	"NET":    syscall.CLONE_NEWNET,
+	"TIME":   syscall.CLONE_NEWTIME,
 }
 
 // keep in mind that clone is blocked by docker default seccomp profile unless you have CAP_SYS_ADMIN
