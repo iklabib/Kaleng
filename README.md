@@ -1,2 +1,2 @@
 # Kaleng
-Reduce the potential attack surface for executing arbitrary binaries in containers
+A simple compartment, basically chroot with restriction. Please see example.json or example.yaml for configuration sample.
