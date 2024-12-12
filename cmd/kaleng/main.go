@@ -25,7 +25,7 @@ func main() {
 	var cli CLI
 	kong.Parse(&cli)
 
-	buf, err := io.ReadAll(os.Stdin)
+	buf, err := os.ReadFile(cli.Execute.Config)
 	util.Bail(err)
 
 	config, err := restrict.Config(buf)
@@ -67,11 +67,11 @@ func setup() {
 	executable := cli.Execute.Args[0]
 	args := cli.Execute.Args[1:]
 
-	execute(executable, args, config)
+	execute(executable, args, config.TimeLimit)
 }
 
-func execute(executable string, args []string, config configs.KalengConfig) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(config.TimeLimit)*time.Second)
+func execute(executable string, args []string, timeLimit int) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeLimit)*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, executable, args...)
@@ -174,14 +174,10 @@ func execSetup(root string, stdin io.Reader, config configs.KalengConfig) (bytes
 	return stdout, cg.Violations()
 }
 
-func helpUsage(help string) {
-	fmt.Fprintln(os.Stderr, help)
-	os.Exit(0)
-}
-
 type CLI struct {
 	Execute struct {
-		Root string
-		Args []string `arg:"" passthrough:""`
+		Root   string
+		Config string
+		Args   []string `arg:"" passthrough:""`
 	} `cmd:""`
 }
