@@ -20,11 +20,8 @@ import (
 	"github.com/alecthomas/kong"
 )
 
-// TODO: better cgroup violation report
-// TODO: better landlock violation report
-// TODO: kill all cgroup process except for the init process
-
 func main() {
+	defer os.Exit(0)
 	var cli CLI
 	kong.Parse(&cli)
 
@@ -41,19 +38,18 @@ func main() {
 
 	if len(violations) == 0 {
 		fmt.Print(stdout.String())
-		os.Exit(0)
+	} else {
+		var result model.Result
+		err = json.Unmarshal(stdout.Bytes(), &result)
+		util.Bail(err)
+
+		result.Message = append(result.Message, violations...)
+
+		content, err := json.Marshal(result)
+		util.Bail(err)
+
+		fmt.Println(string(content))
 	}
-
-	var result model.Result
-	err = json.Unmarshal(stdout.Bytes(), &result)
-	util.Bail(err)
-
-	result.Message = append(result.Message, violations...)
-
-	content, err := json.Marshal(result)
-	util.Bail(err)
-
-	fmt.Println(string(content))
 }
 
 func init() {
@@ -79,8 +75,9 @@ func execute(executable string, args []string, config configs.KalengConfig) {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, executable, args...)
-	var stdout bytes.Buffer
-	cmd.Stdout = &stdout
+	var output bytes.Buffer
+	cmd.Stdout = &output
+	cmd.Stderr = &output
 
 	start := time.Now()
 	util.Bail(cmd.Start())
@@ -104,7 +101,7 @@ func execute(executable string, args []string, config configs.KalengConfig) {
 
 	result := model.Result{
 		Metric: metrics,
-		Stdout: stdout.String(),
+		Output: output.String(),
 	}
 
 	if err := ctx.Err(); err != nil {
@@ -112,6 +109,8 @@ func execute(executable string, args []string, config configs.KalengConfig) {
 			result.Message = append(result.Message, "time limit exceeded")
 		} else if errors.Is(err, context.Canceled) {
 			result.Message = append(result.Message, "canceled")
+		} else {
+			result.Message = append(result.Message, err.Error())
 		}
 	}
 

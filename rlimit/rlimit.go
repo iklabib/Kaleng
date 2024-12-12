@@ -16,9 +16,9 @@ const (
 )
 
 type Rlimit struct {
-	Resource string `json:"resource"`
-	Soft     uint64 `json:"soft"`
-	Hard     uint64 `json:"hard"`
+	Resource string `config:"resource" yaml:"resource" json:"resource"`
+	Soft     uint64 `config:"soft" yaml:"soft" json:"soft"`
+	Hard     uint64 `config:"hard" yaml:"soft" json:"hard"`
 }
 
 func (rl Rlimit) ApplyLimit() error {
@@ -38,9 +38,7 @@ func (rl Rlimit) ApplyLimit() error {
 		resource = syscall.RLIMIT_NOFILE
 	case RLIMIT_STACK:
 		resource = syscall.RLIMIT_STACK
-	}
-
-	if resource == -1 {
+	default:
 		return fmt.Errorf("unknown rlimit resource option '%s'", rl.Resource)
 	}
 

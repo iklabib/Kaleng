@@ -9,6 +9,5 @@ RUN apt update && apt install -y neovim
 
 WORKDIR /app
 COPY --from=build /build/kaleng kaleng
-COPY example.json example.json
+COPY example.yaml example.yaml
 COPY vendor/ vendor/
-COPY run.sh run.sh

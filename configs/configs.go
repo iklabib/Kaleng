@@ -15,27 +15,27 @@ type Cgroup struct {
 
 // no-op if default value
 type Cpu struct {
-	Time   uint `json:"time"`   // cpu.max $MAX
-	Period uint `json:"period"` // cpu.max $PERIOD
-	Weight uint `json:"weight"` // cpu.weight
+	Time   uint `config:"time" yaml:"time" json:"time"`       // cpu.max $MAX
+	Period uint `config:"period" yaml:"period" json:"period"` // cpu.max $PERIOD
+	Weight uint `config:"weight" yaml:"weight" json:"weight"` // cpu.weight
 }
 
 type Bind struct {
-	Source string `config:"source" json:"source"`
-	Target string `config:"target" json:"target"`
-	FsType string `config:"fstype" json:"fstype"`
-	Data   string `config:"data" json:"data"`
+	Source string `config:"source" yaml:"source" json:"source"`
+	Target string `config:"target" yaml:"target" json:"target"`
+	FsType string `config:"fstype" yaml:"fstype" json:"fstype"`
+	Data   string `config:"data" yaml:"data" json:"data"`
 }
 
 type KalengConfig struct {
 	Cgroup     `config:"cgroup" json:"cgroup"`
 	Envs       map[string]string `config:"envs" json:"envs"`
 	Namespaces []string          `config:"namespaces"  json:"namespaces"`
-	Rlimits    []rlimit.Rlimit   `config:"rlimits" json:"rlimits"`
-	Seccomp    seccomp.Policy    `config:"seccomp" json:"seccomp"`
-	User       string            `config:"user" json:"user"`
-	Group      string            `config:"group" json:"group"`
-	TimeLimit  int               `config:"time_limit" json:"time_limit"` // s
-	Files      []string          `config:"files" json:"files"`           // fd:rwxc:/path
-	Binds      []Bind            `config:"binds" json:"binds"`
+	Rlimits    []rlimit.Rlimit   `config:"rlimits" yaml:"rlimits" json:"rlimits"`
+	Seccomp    seccomp.Policy    `config:"seccomp" yaml:"seccomp" json:"seccomp"`
+	User       string            `config:"user" yaml:"user" json:"user"`
+	Group      string            `config:"group" yaml:"group" json:"group"`
+	TimeLimit  int               `config:"time_limit" yaml:"time_limit" json:"time_limit"` // s
+	Files      []string          `config:"files" yaml:"files" json:"files"`                // fd:rwxc:/path
+	Binds      []Bind            `config:"binds" yaml:"binds" json:"binds"`
 }
