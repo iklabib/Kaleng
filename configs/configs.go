@@ -29,8 +29,8 @@ type Bind struct {
 
 type KalengConfig struct {
 	Cgroup     `config:"cgroup" json:"cgroup"`
-	Envs       map[string]string `config:"envs" json:"envs"`
-	Namespaces []string          `config:"namespaces"  json:"namespaces"`
+	Envs       map[string]string `config:"envs" yaml:"envs" json:"envs"`
+	Namespaces []string          `config:"namespaces" yaml:"namespaces"  json:"namespaces"`
 	Rlimits    []rlimit.Rlimit   `config:"rlimits" yaml:"rlimits" json:"rlimits"`
 	Seccomp    seccomp.Policy    `config:"seccomp" yaml:"seccomp" json:"seccomp"`
 	User       string            `config:"user" yaml:"user" json:"user"`

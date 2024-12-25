@@ -138,8 +138,19 @@ func execSetup(root string, stdin io.Reader, config configs.KalengConfig) (bytes
 	cg := restrict.CGroup(root, config.Cgroup)
 	defer cg.CloseFd()
 
-	uid := util.LookupUser(config.User)
-	gid := util.LookupGroup(config.Group)
+	uid, err := util.LookupUser(config.User)
+	if err != nil {
+		fmt.Println(err.Error())
+		restrict.CleanChroot(root, config.Binds)
+		os.Exit(1)
+	}
+
+	gid, err := util.LookupGroup(config.Group)
+	if err != nil {
+		fmt.Println(err.Error())
+		restrict.CleanChroot(root, config.Binds)
+		os.Exit(1)
+	}
 
 	args := append([]string{"setup"}, os.Args[1:]...)
 	cmd := reexec.Command(args...)

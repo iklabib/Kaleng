@@ -148,22 +148,29 @@ func RandomNumber(n uint32) uint32 {
 	return fastrand.Uint32n(n)
 }
 
-func LookupUser(username string) int {
+func LookupUser(username string) (int, error) {
 	user, err := user.Lookup(username)
-	Bail(err)
-
+	if err != nil {
+		return 0, err
+	}
 	uid, err := strconv.Atoi(user.Uid)
-	Bail(err)
+	if err != nil {
+		return 0, err
+	}
 
-	return uid
+	return uid, err
 }
 
-func LookupGroup(group string) int {
+func LookupGroup(group string) (int, error) {
 	user, err := user.LookupGroup(group)
-	Bail(err)
+	if err != nil {
+		return 0, err
+	}
 
 	gid, err := strconv.Atoi(user.Gid)
-	Bail(err)
+	if err != nil {
+		return 0, err
+	}
 
-	return gid
+	return gid, err
 }
